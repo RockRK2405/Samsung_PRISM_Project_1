@@ -1,0 +1,39 @@
+# =====================================================================
+# Dataset manifest — FaceForensics++ (c23)
+# =====================================================================
+# Small tracked pointer file describing WHERE this dataset comes from
+# and WHERE it lives locally. The dataset bytes themselves are NOT in
+# git — see docs/dataset_notes_ff_c23.md for full context.
+# =====================================================================
+
+id: "ff_c23"
+name: "FaceForensics++"
+version: "c23"
+
+source:
+  type: "kaggle"
+  handle: "xdxd003/ff-c23"
+  url: "https://www.kaggle.com/datasets/xdxd003/ff-c23"
+
+original_publication:
+  citation: >
+    Rössler et al., "FaceForensics++: Learning to Detect Manipulated
+    Facial Images", ICCV 2019.
+
+local:
+  root: "data/raw/ff_c23"
+  metadata: "data/metadata/ff_c23.json"
+
+contents:
+  real_videos: 1000
+  synthetic_videos: 4000
+  manipulation_methods:
+    - Deepfakes
+    - Face2Face
+    - FaceSwap
+    - NeuralTextures
+  approx_size_gb: 16
+  compression: "c23 (H.264 CRF 23)"
+
+status: "selected"      # selected | downloaded | verified | in_use
+notes_file: "docs/dataset_notes_ff_c23.md"

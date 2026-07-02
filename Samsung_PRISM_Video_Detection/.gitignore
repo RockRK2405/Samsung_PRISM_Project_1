@@ -61,8 +61,12 @@ data/metadata/*
 !data/cache/.gitkeep
 !data/metadata/.gitkeep
 
+# Ignore dataset bytes but keep tracked manifests (README + *.yaml/*.json)
 datasets/*
 !datasets/README.md
+!datasets/*.yaml
+!datasets/*.yml
+!datasets/*.json
 
 # --- Outputs & logs ---
 outputs/**
