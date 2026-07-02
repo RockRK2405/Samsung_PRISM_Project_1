@@ -144,7 +144,7 @@ target so future modules can be built into their correct slots.
 | # | Milestone                                                       | Status  |
 |---|-----------------------------------------------------------------|---------|
 | 0 | Repository scaffolding                                          | Current |
-| 1 | Environment setup & tooling                                     | Planned |
+| 1 | Environment setup & tooling                                     | **Done** — dependency baseline recorded in `docs/architecture/ADR-001-dependency-baseline.md` |
 | 2 | Dataset survey & subset selection (FaceForensics++, Celeb-DF)   | **In progress** — FF++ c23 selected as primary training set (see `docs/dataset_notes_ff_c23.md`) |
 | 3 | Frame extraction & face-detection pipeline                      | Planned |
 | 4 | Per-frame CNN baseline (XceptionNet / EfficientNet)             | Planned |
@@ -189,11 +189,32 @@ python -m pip install --upgrade pip setuptools wheel
 
 ### 6.4 Install dependencies
 
-> Dependencies are intentionally not pinned yet. `requirements.txt` will
-> be populated in Milestone 1 once concrete libraries are selected.
+Runtime dependencies are in `requirements.txt`; developer tooling
+(pytest, ruff, mypy, pre-commit) is in `requirements-dev.txt`.
 
 ```bash
+# Runtime only:
 pip install -r requirements.txt
+
+# Runtime + development tools:
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+The rationale behind the current dependency choices lives in
+[`docs/architecture/ADR-001-dependency-baseline.md`](docs/architecture/ADR-001-dependency-baseline.md).
+
+### 6.5 Convenience shortcuts (`make`)
+
+A minimal `Makefile` wraps the most common workflows. From the project
+root, once the venv exists:
+
+```bash
+make help          # list available targets
+make install-dev   # create venv + install runtime + dev deps
+make lint          # ruff check
+make format        # ruff fix + format
+make typecheck     # mypy
+make test          # pytest
 ```
 
 ---

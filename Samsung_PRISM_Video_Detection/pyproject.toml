@@ -1,0 +1,96 @@
+# =====================================================================
+# Samsung PRISM — Video Detection Module — tooling configuration
+# =====================================================================
+# This file configures the developer tooling (ruff, mypy, pytest).
+# Runtime + dev dependencies are managed via requirements.txt and
+# requirements-dev.txt, NOT via [project]/PEP 621 dependencies here —
+# the module is not (yet) intended to be pip-installed as a package.
+# =====================================================================
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    "notebooks",
+    ".venv",
+    "data",
+    "outputs",
+    "checkpoints",
+    "logs",
+]
+
+[tool.ruff.lint]
+# Sensible starter selection — expand as the codebase grows.
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "N",    # pep8-naming
+    "SIM",  # flake8-simplify
+    "D",    # pydocstyle (Google docstring style)
+]
+ignore = [
+    "D100",  # missing docstring in public module (module-level README covers this)
+    "D104",  # missing docstring in public package
+    "D203",  # 1 blank line before class docstring — conflicts with D211
+    "D213",  # multi-line docstring summary on second line — conflicts with D212
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**"   = ["D"]     # docstrings not required for test files
+"scripts/**" = ["D"]     # placeholder CLI scripts — full docs added on implementation
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ---------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+strict = false                  # will tighten milestone by milestone
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+disallow_untyped_defs = false   # tighten to `true` once src/ has real code
+ignore_missing_imports = true   # third-party stub coverage is uneven
+exclude = [
+    "notebooks/",
+    "\\.venv/",
+    "data/",
+    "outputs/",
+]
+
+# ---------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# ---------------------------------------------------------------------
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

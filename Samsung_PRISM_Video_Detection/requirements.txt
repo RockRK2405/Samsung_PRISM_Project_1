@@ -1,61 +1,63 @@
 # =====================================================================
-# Samsung PRISM — Video Detection Module
-# Python 3.11 — Apple Silicon (macOS) development target
+# Samsung PRISM — Video Detection Module — runtime dependencies
+# Target: Python 3.11, macOS Apple Silicon (MPS backend for PyTorch)
 # =====================================================================
 #
-# Dependencies are intentionally left unpinned at this stage.
-# They will be finalised in Milestone 1 (environment & tooling setup),
-# once concrete libraries and versions have been agreed on.
+# Versions use lower-bound pinning (>=) to keep the environment
+# reproducible without freezing us to obsolete releases. A stricter
+# lockfile will be produced once the pipeline is running end-to-end.
 #
-# Planned dependency groups (for reference only — DO NOT install yet):
+# Install with:
+#     python -m pip install --upgrade pip setuptools wheel
+#     pip install -r requirements.txt
 #
+# NOTE: PyTorch on Apple Silicon uses the default PyPI wheels — no
+# custom --extra-index-url is required for MPS support (unlike CUDA).
+# =====================================================================
+
 # --- Core scientific stack ---
-# numpy
-# pandas
-# scipy
-#
+numpy>=1.26,<3
+pandas>=2.1
+scipy>=1.11
+
 # --- Deep learning (PyTorch + MPS backend on Apple Silicon) ---
-# torch
-# torchvision
-# torchaudio
-#
+torch>=2.2
+torchvision>=0.17
+
 # --- Computer vision / video IO ---
-# opencv-python
-# pillow
-# av                    # PyAV, for robust video decoding
-# decord                # optional, fast video reader
-#
+opencv-python>=4.9
+pillow>=10.2
+av>=12.0                        # PyAV — robust video decoding via ffmpeg
+
 # --- Face detection / alignment ---
-# mediapipe
-# facenet-pytorch       # or retinaface
-#
+# Backend choice deferred to Milestone 3. Both are listed so either can
+# be trialled without a requirements.txt edit; drop the loser after
+# ADR-002 (face-detection backend) is signed off.
+mediapipe>=0.10
+facenet-pytorch>=2.6
+
 # --- Model architectures / pretrained weights ---
-# timm                  # ViT, EfficientNet, XceptionNet backbones
-#
-# --- Experiment tracking ---
-# mlflow                # or wandb
-#
+timm>=1.0                       # XceptionNet, EfficientNet, ViT backbones
+
 # --- Configuration / CLI ---
-# pyyaml
-# hydra-core            # optional, for hierarchical configs
-# typer                 # optional, for CLI scripts
-#
+pyyaml>=6.0
+typer>=0.12                     # CLI framework for scripts/
+
+# --- Experiment tracking ---
+mlflow>=2.13
+
 # --- Visualisation ---
-# matplotlib
-# seaborn
-#
+matplotlib>=3.8
+seaborn>=0.13
+
 # --- Explainability ---
-# grad-cam
-# captum
-#
-# --- Notebooks ---
-# jupyterlab
-# ipykernel
-#
-# --- Testing & quality ---
-# pytest
-# pytest-cov
-# ruff
-# mypy
-#
-# =====================================================================
+grad-cam>=1.5
+captum>=0.7
+
+# --- Notebooks (runtime — dev-only extras live in requirements-dev.txt) ---
+jupyterlab>=4.1
+ipykernel>=6.29
+
+# --- Utilities ---
+tqdm>=4.66
+rich>=13.7                      # nicer logging / tracebacks

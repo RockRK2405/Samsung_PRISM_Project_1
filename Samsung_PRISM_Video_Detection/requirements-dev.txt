@@ -1,0 +1,20 @@
+# =====================================================================
+# Samsung PRISM — Video Detection Module — development-only dependencies
+# =====================================================================
+# Install alongside runtime deps with:
+#     pip install -r requirements.txt -r requirements-dev.txt
+# =====================================================================
+
+# --- Testing ---
+pytest>=8.1
+pytest-cov>=5.0
+
+# --- Code quality ---
+ruff>=0.4                       # linter + formatter (replaces flake8+isort+black)
+mypy>=1.10
+
+# --- Type stubs ---
+types-PyYAML
+
+# --- Pre-commit hook runner (optional but recommended) ---
+pre-commit>=3.7
