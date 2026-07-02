@@ -1,0 +1,28 @@
+# =====================================================================
+# Dataset configuration — PLACEHOLDER
+# =====================================================================
+# Populated in Milestone 2 (dataset survey & subset selection).
+# Do NOT rely on any of these values yet — every entry is illustrative.
+# =====================================================================
+
+dataset:
+  name: null                    # e.g. "faceforensics_pp"
+  version: null                 # e.g. "c23"
+  root: null                    # absolute path resolved via paths.yaml
+
+  splits:
+    train: null                 # path or manifest file
+    val: null
+    test: null
+
+  manipulation_types: []        # e.g. [Deepfakes, Face2Face, FaceSwap, NeuralTextures]
+  compression_level: null       # raw | c23 | c40
+
+  sampling:
+    frames_per_video: null      # e.g. 16
+    strategy: null              # uniform | dense | keyframe
+    face_crop_size: null        # e.g. 224
+
+  labels:
+    real: 0
+    synthetic: 1

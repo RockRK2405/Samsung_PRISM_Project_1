@@ -1,0 +1,61 @@
+# =====================================================================
+# Samsung PRISM — Video Detection Module
+# Python 3.11 — Apple Silicon (macOS) development target
+# =====================================================================
+#
+# Dependencies are intentionally left unpinned at this stage.
+# They will be finalised in Milestone 1 (environment & tooling setup),
+# once concrete libraries and versions have been agreed on.
+#
+# Planned dependency groups (for reference only — DO NOT install yet):
+#
+# --- Core scientific stack ---
+# numpy
+# pandas
+# scipy
+#
+# --- Deep learning (PyTorch + MPS backend on Apple Silicon) ---
+# torch
+# torchvision
+# torchaudio
+#
+# --- Computer vision / video IO ---
+# opencv-python
+# pillow
+# av                    # PyAV, for robust video decoding
+# decord                # optional, fast video reader
+#
+# --- Face detection / alignment ---
+# mediapipe
+# facenet-pytorch       # or retinaface
+#
+# --- Model architectures / pretrained weights ---
+# timm                  # ViT, EfficientNet, XceptionNet backbones
+#
+# --- Experiment tracking ---
+# mlflow                # or wandb
+#
+# --- Configuration / CLI ---
+# pyyaml
+# hydra-core            # optional, for hierarchical configs
+# typer                 # optional, for CLI scripts
+#
+# --- Visualisation ---
+# matplotlib
+# seaborn
+#
+# --- Explainability ---
+# grad-cam
+# captum
+#
+# --- Notebooks ---
+# jupyterlab
+# ipykernel
+#
+# --- Testing & quality ---
+# pytest
+# pytest-cov
+# ruff
+# mypy
+#
+# =====================================================================

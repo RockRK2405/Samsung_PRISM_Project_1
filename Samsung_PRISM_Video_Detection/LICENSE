@@ -1,0 +1,14 @@
+Copyright (c) 2026 Samsung PRISM Worklet 26TS08 — Video Detection Module
+
+This repository is developed as part of the Samsung PRISM research
+programme (Worklet 26TS08: "A Cost-Aware Framework for Synthetic Data
+Detection in Data Acquisition Pipelines"). It is intended for academic
+and research use associated with this worklet.
+
+Licensing terms for external distribution are pending confirmation with
+the Samsung PRISM programme office. Until such confirmation is received,
+this codebase should be treated as an internal research artefact and
+should not be redistributed outside the worklet team.
+
+A formal open-source license (e.g. MIT / Apache-2.0) will replace this
+placeholder once the programme office has authorised release.

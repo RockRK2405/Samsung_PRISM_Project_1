@@ -1,0 +1,32 @@
+# =====================================================================
+# Model configuration — PLACEHOLDER
+# =====================================================================
+# Populated in Milestones 4–6 (baseline CNN, temporal head, dual-stream).
+# =====================================================================
+
+model:
+  name: null                    # e.g. "dual_stream_vit_lstm"
+  backbone: null                # e.g. "xception" | "efficientnet_b4" | "vit_base"
+  pretrained: null              # true | false | "path/to/weights"
+
+  input:
+    image_size: null            # e.g. 224
+    channels: null              # e.g. 3
+    frames_per_clip: null       # e.g. 16
+
+  spatial_stream:
+    enabled: null
+    backbone: null
+
+  frequency_stream:
+    enabled: null
+    transform: null             # fft | dct
+
+  temporal_head:
+    type: null                  # lstm | attention | mean_pool
+    hidden_dim: null
+    num_layers: null
+
+  classifier:
+    num_classes: 2
+    dropout: null

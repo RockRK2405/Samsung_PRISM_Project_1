@@ -1,0 +1,39 @@
+# =====================================================================
+# Training configuration — PLACEHOLDER
+# =====================================================================
+
+train:
+  seed: 42
+  device: null                  # "mps" on Apple Silicon | "cuda" | "cpu"
+
+  epochs: null
+  batch_size: null
+  num_workers: null
+
+  optimizer:
+    name: null                  # adamw | sgd
+    lr: null
+    weight_decay: null
+
+  scheduler:
+    name: null                  # cosine | step | plateau
+    warmup_epochs: null
+
+  loss:
+    name: null                  # cross_entropy | focal
+    label_smoothing: null
+
+  augmentation:
+    enabled: null
+    horizontal_flip: null
+    color_jitter: null
+    random_crop: null
+
+  checkpointing:
+    save_every: null
+    keep_best_only: null
+    metric: null                # e.g. "val_f1"
+
+  logging:
+    log_every: null
+    tracker: null               # mlflow | wandb | tensorboard | none
