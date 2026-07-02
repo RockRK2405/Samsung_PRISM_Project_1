@@ -145,7 +145,7 @@ target so future modules can be built into their correct slots.
 |---|-----------------------------------------------------------------|---------|
 | 0 | Repository scaffolding                                          | Current |
 | 1 | Environment setup & tooling                                     | Planned |
-| 2 | Dataset survey & subset selection (FaceForensics++, Celeb-DF)   | Planned |
+| 2 | Dataset survey & subset selection (FaceForensics++, Celeb-DF)   | **In progress** — FF++ c23 selected as primary training set (see `docs/dataset_notes_ff_c23.md`) |
 | 3 | Frame extraction & face-detection pipeline                      | Planned |
 | 4 | Per-frame CNN baseline (XceptionNet / EfficientNet)             | Planned |
 | 5 | Temporal aggregation head                                       | Planned |

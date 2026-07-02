@@ -1,28 +1,47 @@
 # =====================================================================
-# Dataset configuration — PLACEHOLDER
+# Dataset configuration
 # =====================================================================
-# Populated in Milestone 2 (dataset survey & subset selection).
-# Do NOT rely on any of these values yet — every entry is illustrative.
+# Primary training / validation dataset locked in during Milestone 2:
+# FaceForensics++ (c23), obtained via the Kaggle mirror at
+# https://www.kaggle.com/datasets/xdxd003/ff-c23
+#
+# Full rationale and license notes: docs/dataset_notes_ff_c23.md
+#
+# Values marked `null` remain deliberately undecided at this stage and
+# will be filled in during Milestones 3–4.
 # =====================================================================
 
 dataset:
-  name: null                    # e.g. "faceforensics_pp"
-  version: null                 # e.g. "c23"
-  root: null                    # absolute path resolved via paths.yaml
+  name: "faceforensics_pp"
+  version: "c23"
+  source: "kaggle:xdxd003/ff-c23"        # informational only
+  root: "data/raw/ff_c23"                  # resolved against configs/paths.yaml
 
   splits:
-    train: null                 # path or manifest file
-    val: null
-    test: null
+    train: "data/metadata/ff_c23_train.json"   # to be generated in Milestone 3
+    val:   "data/metadata/ff_c23_val.json"
+    test:  "data/metadata/ff_c23_test.json"
+    split_ratio: [0.8, 0.1, 0.1]               # tentative — video-level, no subject leakage
+    split_seed: 42
 
-  manipulation_types: []        # e.g. [Deepfakes, Face2Face, FaceSwap, NeuralTextures]
-  compression_level: null       # raw | c23 | c40
+  manipulation_types:
+    - Deepfakes
+    - Face2Face
+    - FaceSwap
+    - NeuralTextures
+  compression_level: "c23"
 
   sampling:
-    frames_per_video: null      # e.g. 16
-    strategy: null              # uniform | dense | keyframe
-    face_crop_size: null        # e.g. 224
+    frames_per_video: null                # candidate: 16 or 32
+    strategy: null                        # uniform | dense | keyframe
+    face_crop_size: null                  # candidate: 224 (matches typical ViT / EfficientNet input)
 
   labels:
     real: 0
     synthetic: 1
+
+  # Held-out cross-dataset evaluation set — decided in Milestone 8, NOT
+  # used during training. Candidates: Celeb-DF v2, DFDC sample split.
+  cross_dataset_eval:
+    name: null
+    root: null
