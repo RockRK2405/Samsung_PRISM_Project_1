@@ -32,9 +32,9 @@ dataset:
   compression_level: "c23"
 
   sampling:
-    frames_per_video: null                # candidate: 16 or 32
-    strategy: null                        # uniform | dense | keyframe
-    face_crop_size: null                  # candidate: 224 (matches typical ViT / EfficientNet input)
+    frames_per_video: 32                  # locked in ADR-002
+    strategy: "uniform"                   # evenly spaced across the full clip
+    face_crop_size: 224                   # matches ViT / EfficientNet / timm defaults
 
   labels:
     real: 0

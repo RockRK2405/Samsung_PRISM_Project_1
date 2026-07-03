@@ -47,6 +47,8 @@
 - **Manipulation subset for v1:** likely all four methods, so we can
   report per-method accuracy — but a two-method sanity run may come
   first to validate the pipeline quickly.
+- **Frame sampling:** 32 frames per video, uniform spacing, 224×224
+  face crops. Rationale: `docs/architecture/ADR-002-frame-sampling-and-crop-size.md`.
 
 ## Storage & Cache Plan
 - **Raw video location** (see `configs/paths.yaml`): `data/raw/ff_c23/`.
