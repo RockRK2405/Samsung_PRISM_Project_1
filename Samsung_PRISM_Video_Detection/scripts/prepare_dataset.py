@@ -116,8 +116,18 @@ def _run_face_extraction(
         strategy=str(sampling["strategy"]),
     )
 
-    dev = select_device(device)
-    logger.info("Face detector device: %s", dev)
+    # MTCNN on Apple Silicon MPS trips a known PyTorch bug:
+    # `adaptive_avg_pool2d` requires input dims divisible by output dims,
+    # which MTCNN's multi-scale image pyramid violates. MTCNN is small
+    # enough that CPU throughput is fine — the heavy training model in
+    # Milestone 4+ still uses MPS. Users can force any device with
+    # `--device`.
+    if device is None:
+        dev = "cpu"
+        logger.info("Face detector device: cpu (MPS pyramid bug workaround)")
+    else:
+        dev = select_device(device)
+        logger.info("Face detector device: %s (forced via --device)", dev)
     detector = MTCNNFaceDetector(
         image_size=int(sampling["face_crop_size"]),
         margin=20,
