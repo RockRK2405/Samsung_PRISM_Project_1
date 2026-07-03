@@ -1,5 +1,5 @@
-"""Samsung PRISM Video Detection — `models` subpackage.
+"""Neural network architectures for the video detection module."""
 
-Placeholder. See README.md in this directory for the intended
-responsibilities of this subpackage.
-"""
+from src.models.baseline import BaselineDetector, build_baseline_from_config
+
+__all__ = ["BaselineDetector", "build_baseline_from_config"]

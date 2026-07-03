@@ -1,5 +1,5 @@
-"""Samsung PRISM Video Detection — `training` subpackage.
+"""Training + evaluation entry points."""
 
-Placeholder. See README.md in this directory for the intended
-responsibilities of this subpackage.
-"""
+from src.training.trainer import run_evaluation, run_training
+
+__all__ = ["run_evaluation", "run_training"]

@@ -1,5 +1,9 @@
-"""Samsung PRISM Video Detection — `datasets` subpackage.
+"""PyTorch datasets built on the cached FF++ face crops."""
 
-Placeholder. See README.md in this directory for the intended
-responsibilities of this subpackage.
-"""
+from src.datasets.ff_dataset import FaceFrameDataset, FaceSample, FaceVideoDataset
+
+__all__ = [
+    "FaceFrameDataset",
+    "FaceSample",
+    "FaceVideoDataset",
+]

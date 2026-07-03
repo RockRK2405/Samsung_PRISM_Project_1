@@ -1,39 +1,39 @@
 # =====================================================================
-# Training configuration — PLACEHOLDER
+# Training configuration — Milestone 4 baseline
 # =====================================================================
 
 train:
   seed: 42
-  device: null                  # "mps" on Apple Silicon | "cuda" | "cpu"
+  device: null                    # null = auto-detect (mps on Apple Silicon)
 
-  epochs: null
-  batch_size: null
-  num_workers: null
+  epochs: 5                       # baseline — bump to 10 if val F1 still climbing
+  batch_size: 32
+  num_workers: 4
 
   optimizer:
-    name: null                  # adamw | sgd
-    lr: null
-    weight_decay: null
+    name: "adamw"
+    lr: 0.0003                    # 3e-4 — standard for fine-tuning ImageNet CNNs
+    weight_decay: 0.0001
 
   scheduler:
-    name: null                  # cosine | step | plateau
-    warmup_epochs: null
+    name: "cosine"                # cosine annealing over `epochs`
+    warmup_epochs: 0
 
   loss:
-    name: null                  # cross_entropy | focal
-    label_smoothing: null
+    name: "cross_entropy"
+    label_smoothing: 0.05
 
   augmentation:
-    enabled: null
+    enabled: false                # Milestone 4 uses raw crops; augmentation added later
     horizontal_flip: null
     color_jitter: null
     random_crop: null
 
   checkpointing:
     save_every: null
-    keep_best_only: null
-    metric: null                # e.g. "val_f1"
+    keep_best_only: true
+    metric: "val_f1"
 
   logging:
-    log_every: null
-    tracker: null               # mlflow | wandb | tensorboard | none
+    log_every: 50                 # log train loss every 50 steps
+    tracker: "mlflow"

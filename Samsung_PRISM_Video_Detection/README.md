@@ -147,7 +147,7 @@ target so future modules can be built into their correct slots.
 | 1 | Environment setup & tooling                                     | **Done** — dependency baseline recorded in `docs/architecture/ADR-001-dependency-baseline.md` |
 | 2 | Dataset survey & subset selection (FaceForensics++, Celeb-DF)   | **Done** — FF++ c23 primary set + 32 frames uniform / 224×224 crops locked in (`ADR-002`) |
 | 3 | Frame extraction & face-detection pipeline                      | **Done** — `src/preprocessing/`, `scripts/prepare_dataset.py` |
-| 4 | Per-frame CNN baseline (XceptionNet / EfficientNet)             | Planned |
+| 4 | Per-frame CNN baseline (XceptionNet / EfficientNet)             | **Done** — EfficientNet-B0 + mean-pool (`src/models/baseline.py`) |
 | 5 | Temporal aggregation head                                       | Planned |
 | 6 | Dual-stream (RGB + frequency) upgrade                           | Planned |
 | 7 | Explainability layer (GradCAM / attention maps)                 | Planned |
@@ -249,3 +249,24 @@ python scripts/prepare_dataset.py faces
 Output lands under `data/processed/faces/ff_c23/<split>/<label>/<video>/`.
 Re-running the same command skips videos whose output dir is already
 populated; pass `--overwrite` to force re-extraction.
+
+### Training the baseline model
+
+Once the face crops exist, train the Milestone-4 baseline
+(EfficientNet-B0 + mean-pool video head):
+
+```bash
+# First run downloads the timm ImageNet weights (~20 MB)
+python scripts/train.py                         # uses configs as-is
+python scripts/train.py --epochs 10             # override any field
+python scripts/train.py --device cpu            # force a device
+
+# Evaluate the best checkpoint on the test split
+python scripts/evaluate.py --split test
+```
+
+Artefacts:
+
+* `checkpoints/best.pt` — best-val-F1 model weights
+* `outputs/metrics/baseline_test.json` — final metrics report
+* `logs/mlruns/` — MLflow run history (browse with `mlflow ui`)

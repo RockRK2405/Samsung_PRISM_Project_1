@@ -1,5 +1,5 @@
-"""Samsung PRISM Video Detection — `evaluation` subpackage.
+"""Metrics + evaluation harness for the video detection module."""
 
-Placeholder. See README.md in this directory for the intended
-responsibilities of this subpackage.
-"""
+from src.evaluation.metrics import ClassificationReport, compute_report
+
+__all__ = ["ClassificationReport", "compute_report"]
