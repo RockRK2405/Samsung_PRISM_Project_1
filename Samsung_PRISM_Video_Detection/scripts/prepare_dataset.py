@@ -21,7 +21,14 @@ or interrupts. Use ``--overwrite`` to force re-extraction.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+
+# Allow `python scripts/prepare_dataset.py …` to import the top-level
+# ``src`` package without an editable install.
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 import typer
 from tqdm import tqdm
