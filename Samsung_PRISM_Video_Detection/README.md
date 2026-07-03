@@ -146,7 +146,7 @@ target so future modules can be built into their correct slots.
 | 0 | Repository scaffolding                                          | Current |
 | 1 | Environment setup & tooling                                     | **Done** — dependency baseline recorded in `docs/architecture/ADR-001-dependency-baseline.md` |
 | 2 | Dataset survey & subset selection (FaceForensics++, Celeb-DF)   | **Done** — FF++ c23 primary set + 32 frames uniform / 224×224 crops locked in (`ADR-002`) |
-| 3 | Frame extraction & face-detection pipeline                      | **Next — awaiting local dataset layout to write extraction code** |
+| 3 | Frame extraction & face-detection pipeline                      | **Done** — `src/preprocessing/`, `scripts/prepare_dataset.py` |
 | 4 | Per-frame CNN baseline (XceptionNet / EfficientNet)             | Planned |
 | 5 | Temporal aggregation head                                       | Planned |
 | 6 | Dual-stream (RGB + frequency) upgrade                           | Planned |
@@ -222,8 +222,30 @@ make test          # pytest
 ## 7. Current Status
 
 - Repository skeleton created.
-- Directory layout finalised.
-- Documentation and configuration templates in place.
-- **No implementation code, no ML models, no datasets present.**
+- Environment + dependency baseline installed and validated on Apple Silicon.
+- Dataset locked in (FaceForensics++ c23 via Kaggle mirror) — 4 canonical
+  manipulations plus `original/` reals.
+- Preprocessing pipeline implemented: video → 32 uniform frames →
+  224×224 face crops via MTCNN, with a leak-free 80/10/10 split by
+  source-video group id.
 
-Next step: Milestone 1 — environment tooling and dependency selection.
+**No ML models yet.** Milestone 4 (baseline CNN) is next.
+
+### Running the preprocessing pipeline
+
+From the module root, with the venv active:
+
+```bash
+# Step 1 — build the train/val/test manifest (fast, seconds)
+python scripts/prepare_dataset.py manifest
+
+# Step 2 — smoke test on 2 videos per split before the long run
+python scripts/prepare_dataset.py faces --limit 2
+
+# Step 3 — full run (this is the slow one — hours on a laptop)
+python scripts/prepare_dataset.py faces
+```
+
+Output lands under `data/processed/faces/ff_c23/<split>/<label>/<video>/`.
+Re-running the same command skips videos whose output dir is already
+populated; pass `--overwrite` to force re-extraction.

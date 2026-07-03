@@ -16,6 +16,8 @@ dataset:
   version: "c23"
   source: "kaggle:xdxd003/ff-c23"        # informational only
   root: "data/raw/ff_c23"                  # resolved against configs/paths.yaml
+  # The Kaggle mirror wraps everything in a "FaceForensics++_C23" folder;
+  # the manifest scanner points at that subdirectory.
 
   splits:
     train: "data/metadata/ff_c23_train.json"   # to be generated in Milestone 3
