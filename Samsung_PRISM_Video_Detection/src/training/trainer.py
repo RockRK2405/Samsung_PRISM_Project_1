@@ -213,8 +213,12 @@ def run_training(
     cfg.checkpoint_dir.mkdir(parents=True, exist_ok=True)
     best_ckpt = cfg.checkpoint_dir / "best.pt"
 
+    # MLflow deprecated the file-store backend in 3.x; use SQLite instead.
+    # A single mlflow.db under logs/mlruns/ keeps everything file-based
+    # (no server to run), while satisfying the new "database backend" rule.
     cfg.mlflow_dir.mkdir(parents=True, exist_ok=True)
-    mlflow.set_tracking_uri(f"file://{cfg.mlflow_dir.resolve()}")
+    db_path = cfg.mlflow_dir / "mlflow.db"
+    mlflow.set_tracking_uri(f"sqlite:///{db_path.resolve()}")
     mlflow.set_experiment(cfg.experiment_name)
 
     best_f1 = -1.0
