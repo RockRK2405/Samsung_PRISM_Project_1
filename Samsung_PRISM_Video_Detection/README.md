@@ -229,17 +229,20 @@ make test          # pytest
   224×224 face crops via MTCNN, with a leak-free 80/10/10 split by
   source-video group id.
 - **Baseline model trained** — EfficientNet-B0 + mean-pool, 5 epochs
-  in ~60 min on MPS. Held-out test-set metrics:
+  in ~60 min on MPS. Final held-out test-set metrics (val-tuned
+  threshold = 0.5872 for FPR ≤ 5%):
 
-  | Metric | Test | Target | Status |
-  |---|:-:|:-:|:-:|
-  | F1 | **0.9837** | ≥ 0.92 | ✅ (+6.4 pp) |
-  | AUC | 0.9946 | — | Excellent |
-  | FPR (@0.5) | 0.0600 | ≤ 0.05 | ⚠ Use `--tune-threshold-fpr 0.05` to close the gap |
-  | Recall | 0.9825 | — | — |
+  | Metric | Test (@0.5) | **Test (tuned)** | Target | Status |
+  |---|:-:|:-:|:-:|:-:|
+  | F1 | 0.9837 | **0.9862** | ≥ 0.92 | ✅ +6.6 pp |
+  | FPR | 0.0600 | **0.0300** | ≤ 0.05 | ✅ 2 pp under |
+  | Precision | 0.9850 | 0.9924 | — | Improved |
+  | Recall | 0.9825 | 0.9800 | — | −0.25 pp trade |
+  | AUC | 0.9946 | 0.9946 | — | Excellent |
 
-  Per-manipulation recall: Deepfakes 100%, Face2Face 99%, FaceSwap 99%,
-  NeuralTextures 95% (hardest — GAN-based, matches published literature).
+  Per-manipulation recall (tuned): Deepfakes 100%, Face2Face 99%,
+  FaceSwap 99%, NeuralTextures **94%** (hardest — GAN-based, matches
+  published literature). Real-video specificity: 97%.
 
 ### Running the preprocessing pipeline
 
