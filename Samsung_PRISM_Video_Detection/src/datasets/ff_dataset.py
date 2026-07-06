@@ -41,7 +41,11 @@ _IMAGENET_STD = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
 
 def _to_tensor(img: Image.Image) -> torch.Tensor:
     """Convert a PIL RGB image to a normalised ``(3, H, W)`` float tensor."""
-    arr = np.asarray(img, dtype=np.uint8)                # HxWx3 uint8
+    # np.asarray on a PIL image returns a read-only view of the JPEG
+    # buffer. PyTorch warns loudly on read-only inputs to `from_numpy`,
+    # so copy once to make it writable — negligible cost, silences the
+    # spam and future-proofs against undefined-behaviour warnings.
+    arr = np.array(img, dtype=np.uint8, copy=True)       # HxWx3 uint8 (writable)
     t = torch.from_numpy(arr).permute(2, 0, 1).float() / 255.0
     return (t - _IMAGENET_MEAN) / _IMAGENET_STD
 

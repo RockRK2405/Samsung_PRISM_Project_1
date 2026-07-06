@@ -76,6 +76,42 @@ def _roc_auc(y_true: np.ndarray, y_score: np.ndarray) -> float:
     return float(u / (len(pos) * len(neg)))
 
 
+def find_threshold_for_fpr(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    max_fpr: float,
+) -> float:
+    """Return the lowest threshold whose FPR is ``≤ max_fpr``.
+
+    Picking the lowest such threshold preserves recall while satisfying
+    the FPR budget — the standard trade-off when a project target is
+    specified as ``FPR ≤ X``.
+
+    Args:
+        y_true: Binary labels (0 real, 1 synthetic).
+        y_score: Model synthetic-probabilities.
+        max_fpr: Upper bound on the false-positive rate in ``[0, 1]``.
+
+    Returns:
+        A threshold in ``[0, 1]``. Falls back to ``1.0`` if no threshold
+        satisfies the budget (this pins FPR at 0 by refusing every alarm).
+    """
+    y_true = np.asarray(y_true).astype(int)
+    y_score = np.asarray(y_score).astype(float)
+
+    # Candidate thresholds — the unique score values (plus the endpoints).
+    candidates = np.unique(np.concatenate([[0.0, 1.0], y_score]))
+    best: float = 1.0
+    for t in sorted(candidates):
+        y_pred = (y_score >= t).astype(int)
+        _tp, fp, tn, _fn = _binary_counts(y_true, y_pred)
+        fpr = _safe_div(fp, fp + tn)
+        if fpr <= max_fpr:
+            best = float(t)
+            break
+    return best
+
+
 def compute_report(
     y_true: np.ndarray,
     y_score: np.ndarray,

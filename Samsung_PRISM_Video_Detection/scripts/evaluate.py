@@ -37,6 +37,14 @@ def main(
     ),
     split: str = typer.Option("test", help='Split to evaluate: "val" or "test".'),
     device: str | None = typer.Option(None, help="Force device: mps | cuda | cpu."),
+    tune_threshold_fpr: float | None = typer.Option(
+        None,
+        help=(
+            "If set, tune the decision threshold on val to keep FPR ≤ this "
+            "value, then apply it to `split`. Use 0.05 for the ≤5%% project "
+            "target."
+        ),
+    ),
 ) -> None:
     """Load ``checkpoint`` and report metrics on ``split``."""
     root = project_root()
@@ -48,10 +56,14 @@ def main(
         raise typer.BadParameter(f"Checkpoint not found: {ckpt_path}")
 
     faces_root = paths["data"]["processed"] / "faces" / "ff_c23"
-    result = run_evaluation(ckpt_path, model_yaml, paths, faces_root, split, device)
+    result = run_evaluation(
+        ckpt_path, model_yaml, paths, faces_root, split, device,
+        tune_threshold_fpr=tune_threshold_fpr,
+    )
 
     r = result["report"]
     logger.info("--- Evaluation summary [%s] ---", split)
+    logger.info("Threshold: %.4f", result["threshold"])
     logger.info("Accuracy : %.4f", r.accuracy)
     logger.info("Precision: %.4f", r.precision)
     logger.info("Recall   : %.4f", r.recall)

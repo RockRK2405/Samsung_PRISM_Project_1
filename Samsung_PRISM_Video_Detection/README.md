@@ -228,8 +228,18 @@ make test          # pytest
 - Preprocessing pipeline implemented: video → 32 uniform frames →
   224×224 face crops via MTCNN, with a leak-free 80/10/10 split by
   source-video group id.
+- **Baseline model trained** — EfficientNet-B0 + mean-pool, 5 epochs
+  in ~60 min on MPS. Held-out test-set metrics:
 
-**No ML models yet.** Milestone 4 (baseline CNN) is next.
+  | Metric | Test | Target | Status |
+  |---|:-:|:-:|:-:|
+  | F1 | **0.9837** | ≥ 0.92 | ✅ (+6.4 pp) |
+  | AUC | 0.9946 | — | Excellent |
+  | FPR (@0.5) | 0.0600 | ≤ 0.05 | ⚠ Use `--tune-threshold-fpr 0.05` to close the gap |
+  | Recall | 0.9825 | — | — |
+
+  Per-manipulation recall: Deepfakes 100%, Face2Face 99%, FaceSwap 99%,
+  NeuralTextures 95% (hardest — GAN-based, matches published literature).
 
 ### Running the preprocessing pipeline
 
@@ -263,6 +273,9 @@ python scripts/train.py --device cpu            # force a device
 
 # Evaluate the best checkpoint on the test split
 python scripts/evaluate.py --split test
+
+# Tune the decision threshold on val so FPR ≤ 5% at test
+python scripts/evaluate.py --split test --tune-threshold-fpr 0.05
 ```
 
 Artefacts:

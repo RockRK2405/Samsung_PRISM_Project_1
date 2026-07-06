@@ -27,7 +27,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 
 from src.datasets import FaceFrameDataset, FaceVideoDataset
-from src.evaluation import compute_report
+from src.evaluation import compute_report, find_threshold_for_fpr
 from src.models import build_baseline_from_config
 from src.utils import get_logger, select_device, set_seed
 
@@ -308,8 +308,15 @@ def run_evaluation(
     faces_root: Path,
     split: str,
     device_pref: str | None,
+    tune_threshold_fpr: float | None = None,
 ) -> dict:
     """Load a checkpoint and evaluate it on the given split.
+
+    Args:
+        tune_threshold_fpr: If set, first evaluate the val split to pick the
+            lowest threshold whose val FPR is ``<= tune_threshold_fpr``,
+            then apply that threshold when evaluating ``split``. This lets us
+            satisfy an "FPR ≤ 5%" project target without retraining.
 
     Returns the same dict shape as ``_evaluate`` plus the write-path of the
     JSON metrics file.
@@ -321,6 +328,21 @@ def run_evaluation(
     logger.info("Loaded checkpoint %s (epoch=%d, val_f1=%.4f)",
                 checkpoint_path, ckpt.get("epoch", -1), ckpt.get("val_f1", float("nan")))
 
+    threshold = 0.5
+    if tune_threshold_fpr is not None:
+        val_ds = FaceVideoDataset(faces_root, "val")
+        val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=2)
+        val_result = _evaluate(model, val_loader, device)
+        threshold = find_threshold_for_fpr(
+            np.asarray(val_result["labels"]),
+            np.asarray(val_result["scores"]),
+            max_fpr=tune_threshold_fpr,
+        )
+        logger.info(
+            "Threshold tuned on val: %.4f (target FPR ≤ %.2f%%)",
+            threshold, tune_threshold_fpr * 100,
+        )
+
     if split == "val":
         ds = FaceVideoDataset(faces_root, "val")
     elif split == "test":
@@ -331,12 +353,25 @@ def run_evaluation(
     loader = DataLoader(ds, batch_size=1, shuffle=False, num_workers=2)
     result = _evaluate(model, loader, device)
 
+    # Recompute the report with the tuned threshold (has no effect if 0.5).
+    if tune_threshold_fpr is not None:
+        result["report"] = compute_report(
+            y_true=np.asarray(result["labels"]),
+            y_score=np.asarray(result["scores"]),
+            manipulations=result["manipulations"],
+            threshold=threshold,
+        )
+
     metrics_dir = Path(paths["outputs"]["metrics"])
     metrics_dir.mkdir(parents=True, exist_ok=True)
-    out_path = metrics_dir / f"baseline_{split}.json"
+    suffix = "_tuned" if tune_threshold_fpr is not None else ""
+    out_path = metrics_dir / f"baseline_{split}{suffix}.json"
+    payload = result["report"].to_dict()
+    payload["threshold"] = threshold
     with out_path.open("w") as f:
-        json.dump(result["report"].to_dict(), f, indent=2)
+        json.dump(payload, f, indent=2)
     logger.info("Wrote metrics to %s", out_path)
 
     result["metrics_path"] = str(out_path)
+    result["threshold"] = threshold
     return result
