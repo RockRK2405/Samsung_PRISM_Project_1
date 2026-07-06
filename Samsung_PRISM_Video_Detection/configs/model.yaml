@@ -1,13 +1,18 @@
 # =====================================================================
-# Model configuration — Milestone 4 baseline
+# Model configuration — Milestone 5 temporal head
 # =====================================================================
-# Architecture: per-frame EfficientNet-B0 with a mean-pool video head.
-# See src/models/baseline.py and README §4 for the full rationale.
+# Architecture: per-frame EfficientNet-B0 features → learned CLS token
+# + positional embeddings → transformer encoder → linear classifier.
+# See src/models/temporal.py and ADR-003 for the full rationale.
+#
+# To fall back to the Milestone-4 baseline (mean-pool), set
+# temporal_head.type: "mean_pool" — the training script auto-dispatches
+# on this field, no code changes needed.
 # =====================================================================
 
 model:
-  name: "baseline_efficientnet_b0_meanpool"
-  backbone: "tf_efficientnet_b0.ns_jft_in1k"    # timm identifier (NoisyStudent pretraining)
+  name: "temporal_efficientnet_b0"
+  backbone: "tf_efficientnet_b0.ns_jft_in1k"
   pretrained: true
 
   input:
@@ -15,9 +20,6 @@ model:
     channels: 3
     frames_per_clip: 32
 
-  # The Milestone-4 baseline has no dedicated spatial / frequency /
-  # temporal blocks — that's the whole point. Milestone 5 adds an
-  # LSTM/attention temporal head; Milestone 6 adds the frequency stream.
   spatial_stream:
     enabled: true
     backbone: "tf_efficientnet_b0.ns_jft_in1k"
@@ -27,9 +29,10 @@ model:
     transform: null
 
   temporal_head:
-    type: "mean_pool"
-    hidden_dim: null
-    num_layers: null
+    type: "transformer"       # "mean_pool" (Milestone 4) | "transformer" (Milestone 5)
+    hidden_dim: 256
+    num_layers: 2
+    num_heads: 4
 
   classifier:
     num_classes: 2

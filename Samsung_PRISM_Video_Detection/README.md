@@ -148,7 +148,7 @@ target so future modules can be built into their correct slots.
 | 2 | Dataset survey & subset selection (FaceForensics++, Celeb-DF)   | **Done** — FF++ c23 primary set + 32 frames uniform / 224×224 crops locked in (`ADR-002`) |
 | 3 | Frame extraction & face-detection pipeline                      | **Done** — `src/preprocessing/`, `scripts/prepare_dataset.py` |
 | 4 | Per-frame CNN baseline (XceptionNet / EfficientNet)             | **Done** — EfficientNet-B0 + mean-pool (`src/models/baseline.py`) |
-| 5 | Temporal aggregation head                                       | Planned |
+| 5 | Temporal aggregation head                                       | **In progress** — transformer encoder + CLS token, config-selectable (`ADR-003`) |
 | 6 | Dual-stream (RGB + frequency) upgrade                           | Planned |
 | 7 | Explainability layer (GradCAM / attention maps)                 | Planned |
 | 8 | Cross-dataset evaluation & robustness testing                   | Planned |

@@ -26,9 +26,16 @@ import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
-from src.datasets import FaceFrameDataset, FaceVideoDataset
+from functools import partial
+
+from src.datasets import FaceFrameDataset, FaceVideoDataset, pad_video_collate
 from src.evaluation import compute_report, find_threshold_for_fpr
-from src.models import build_baseline_from_config
+from src.models import (
+    BaselineDetector,
+    TemporalDetector,
+    build_baseline_from_config,
+    build_model_from_config,
+)
 from src.utils import get_logger, select_device, set_seed
 
 logger = get_logger(__name__)
@@ -82,15 +89,10 @@ def _train_config_from_dict(cfg: dict, paths: dict) -> TrainConfig:
 # DataLoader helpers
 # ---------------------------------------------------------------------
 
-def _make_loaders(
+def _make_loaders_frame(
     faces_root: Path, cfg: TrainConfig
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
-    """Build train / val / test loaders.
-
-    Train is frame-level and shuffled. Val + test are video-level with
-    ``batch_size=1`` so we can accommodate variable-length ``T`` without a
-    custom collate function — evaluation isn't the bottleneck anyway.
-    """
+    """Frame-level loaders — used by the mean-pool baseline (Milestone 4)."""
     train_ds = FaceFrameDataset(faces_root, "train")
     val_ds = FaceVideoDataset(faces_root, "val")
     test_ds = FaceVideoDataset(faces_root, "test")
@@ -100,11 +102,47 @@ def _make_loaders(
         batch_size=cfg.batch_size,
         shuffle=True,
         num_workers=cfg.num_workers,
-        pin_memory=False,   # MPS doesn't support pin_memory
+        pin_memory=False,
         drop_last=True,
     )
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=cfg.num_workers)
     test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=cfg.num_workers)
+    return train_loader, val_loader, test_loader
+
+
+def _make_loaders_video(
+    faces_root: Path, cfg: TrainConfig, num_frames: int
+) -> tuple[DataLoader, DataLoader, DataLoader]:
+    """Video-level loaders — used by the temporal detector (Milestone 5).
+
+    Train uses the padded collate + shuffling. Val/test still run with
+    batch_size=1 so we can keep evaluation code paths shared with the
+    baseline (padding mask happens to be present but the evaluator
+    handles that transparently).
+    """
+    train_ds = FaceVideoDataset(faces_root, "train")
+    val_ds = FaceVideoDataset(faces_root, "val")
+    test_ds = FaceVideoDataset(faces_root, "test")
+    collate = partial(pad_video_collate, pad_to=num_frames)
+    single_collate = partial(pad_video_collate, pad_to=num_frames)
+
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=cfg.batch_size,
+        shuffle=True,
+        num_workers=cfg.num_workers,
+        pin_memory=False,
+        drop_last=True,
+        collate_fn=collate,
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=1, shuffle=False, num_workers=cfg.num_workers,
+        collate_fn=single_collate,
+    )
+    test_loader = DataLoader(
+        test_ds, batch_size=1, shuffle=False, num_workers=cfg.num_workers,
+        collate_fn=single_collate,
+    )
     return train_loader, val_loader, test_loader
 
 
@@ -143,24 +181,66 @@ def _train_one_epoch(
     return float(np.mean(losses))
 
 
+def _train_one_epoch_video(
+    model: TemporalDetector,
+    loader: DataLoader,
+    optimiser: optim.Optimizer,
+    criterion: nn.Module,
+    device: torch.device,
+    log_every: int,
+    epoch: int,
+) -> float:
+    """Video-level training epoch — feeds whole clips through the temporal head."""
+    model.train()
+    losses: list[float] = []
+    for step, batch in enumerate(loader):
+        images = batch["images"].to(device, non_blocking=True)               # (B, T, 3, H, W)
+        padding_mask = batch["padding_mask"].to(device, non_blocking=True)   # (B, T)
+        labels = batch["label"].to(device, non_blocking=True)
+
+        logits = model.forward_video(images, padding_mask=padding_mask)
+        loss = criterion(logits, labels)
+
+        optimiser.zero_grad(set_to_none=True)
+        loss.backward()
+        optimiser.step()
+
+        losses.append(loss.item())
+        if (step + 1) % log_every == 0:
+            recent = float(np.mean(losses[-log_every:]))
+            logger.info("epoch %d step %d/%d loss=%.4f", epoch, step + 1, len(loader), recent)
+
+    return float(np.mean(losses))
+
+
 @torch.no_grad()
 def _evaluate(
     model: nn.Module,
     loader: DataLoader,
     device: torch.device,
 ) -> dict:
-    """Video-level evaluation. Returns metrics + raw arrays for logging."""
+    """Video-level evaluation. Returns metrics + raw arrays for logging.
+
+    Works transparently with both :class:`BaselineDetector` (ignores
+    padding_mask) and :class:`TemporalDetector` (uses it) — the loader
+    controls whether ``padding_mask`` is present in the batch dict.
+    """
     model.eval()
     all_scores: list[float] = []
     all_labels: list[int] = []
     all_manips: list[str] = []
     for batch in loader:
-        # batch_size == 1; unwrap the (1, T, 3, 224, 224) tensor.
         images = batch["images"].to(device, non_blocking=True)
+        # `label` may be a Python int (batch_size=1, plain dataset) or a
+        # tensor (padded collate). Normalise via item() extraction.
         label = int(batch["label"][0])
         manip = str(batch["manipulation"][0])
 
-        logits = model.forward_video(images)              # (1, 2)
+        if "padding_mask" in batch and isinstance(model, TemporalDetector):
+            padding_mask = batch["padding_mask"].to(device, non_blocking=True)
+            logits = model.forward_video(images, padding_mask=padding_mask)
+        else:
+            logits = model.forward_video(images)          # (1, 2)
         prob_synth = torch.softmax(logits, dim=-1)[0, 1].item()
         all_scores.append(prob_synth)
         all_labels.append(label)
@@ -203,15 +283,31 @@ def run_training(
     device = select_device(cfg.device_pref)
     logger.info("Training device: %s", device)
 
-    model = build_baseline_from_config(model_yaml["model"]).to(device)
+    model = build_model_from_config(model_yaml["model"]).to(device)
+    is_temporal = isinstance(model, TemporalDetector)
+    logger.info(
+        "Training mode: %s", "video-level (temporal)" if is_temporal else "frame-level (baseline)"
+    )
+
     criterion = nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing)
     optimiser = optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
     scheduler = _build_scheduler(optimiser, cfg)
 
-    train_loader, val_loader, _test_loader = _make_loaders(faces_root, cfg)
+    if is_temporal:
+        num_frames = int(model_yaml["model"]["input"]["frames_per_clip"])
+        train_loader, val_loader, _test_loader = _make_loaders_video(
+            faces_root, cfg, num_frames=num_frames
+        )
+        experiment_name = "temporal_efficientnet_b0"
+    else:
+        train_loader, val_loader, _test_loader = _make_loaders_frame(faces_root, cfg)
+        experiment_name = cfg.experiment_name
 
     cfg.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    best_ckpt = cfg.checkpoint_dir / "best.pt"
+    # Name the checkpoint after the model — keeps Milestone-4 baseline and
+    # Milestone-5 temporal checkpoints from clobbering each other.
+    ckpt_name = "best.pt" if not is_temporal else "best_temporal.pt"
+    best_ckpt = cfg.checkpoint_dir / ckpt_name
 
     # MLflow deprecated the file-store backend in 3.x; use SQLite instead.
     # A single mlflow.db under logs/mlruns/ keeps everything file-based
@@ -219,7 +315,7 @@ def run_training(
     cfg.mlflow_dir.mkdir(parents=True, exist_ok=True)
     db_path = cfg.mlflow_dir / "mlflow.db"
     mlflow.set_tracking_uri(f"sqlite:///{db_path.resolve()}")
-    mlflow.set_experiment(cfg.experiment_name)
+    mlflow.set_experiment(experiment_name)
 
     best_f1 = -1.0
     with mlflow.start_run():
@@ -236,10 +332,16 @@ def run_training(
 
         for epoch in range(1, cfg.epochs + 1):
             t0 = time.time()
-            train_loss = _train_one_epoch(
-                model, train_loader, optimiser, criterion, device,
-                log_every=cfg.log_every_steps, epoch=epoch,
-            )
+            if is_temporal:
+                train_loss = _train_one_epoch_video(
+                    model, train_loader, optimiser, criterion, device,
+                    log_every=cfg.log_every_steps, epoch=epoch,
+                )
+            else:
+                train_loss = _train_one_epoch(
+                    model, train_loader, optimiser, criterion, device,
+                    log_every=cfg.log_every_steps, epoch=epoch,
+                )
             scheduler.step()
             elapsed = time.time() - t0
 
@@ -272,6 +374,9 @@ def run_training(
                         "config": {
                             "model": model_yaml["model"],
                             "backbone": model_yaml["model"].get("backbone"),
+                            "head_type": (
+                                (model_yaml["model"].get("temporal_head") or {}).get("type")
+                            ),
                         },
                         "epoch": epoch,
                         "val_f1": best_f1,
@@ -322,17 +427,23 @@ def run_evaluation(
     JSON metrics file.
     """
     device = select_device(device_pref)
-    model = build_baseline_from_config(model_yaml["model"]).to(device)
+    model = build_model_from_config(model_yaml["model"]).to(device)
     ckpt = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(ckpt["state_dict"])
     logger.info("Loaded checkpoint %s (epoch=%d, val_f1=%.4f)",
                 checkpoint_path, ckpt.get("epoch", -1), ckpt.get("val_f1", float("nan")))
 
+    is_temporal = isinstance(model, TemporalDetector)
+    num_frames = int(model_yaml["model"]["input"]["frames_per_clip"])
+    collate_fn = partial(pad_video_collate, pad_to=num_frames) if is_temporal else None
+
+    def _build_loader(name: str) -> DataLoader:
+        ds = FaceVideoDataset(faces_root, name)
+        return DataLoader(ds, batch_size=1, shuffle=False, num_workers=2, collate_fn=collate_fn)
+
     threshold = 0.5
     if tune_threshold_fpr is not None:
-        val_ds = FaceVideoDataset(faces_root, "val")
-        val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=2)
-        val_result = _evaluate(model, val_loader, device)
+        val_result = _evaluate(model, _build_loader("val"), device)
         threshold = find_threshold_for_fpr(
             np.asarray(val_result["labels"]),
             np.asarray(val_result["scores"]),
@@ -343,15 +454,9 @@ def run_evaluation(
             threshold, tune_threshold_fpr * 100,
         )
 
-    if split == "val":
-        ds = FaceVideoDataset(faces_root, "val")
-    elif split == "test":
-        ds = FaceVideoDataset(faces_root, "test")
-    else:
+    if split not in {"val", "test"}:
         raise ValueError(f"split must be 'val' or 'test', got {split!r}")
-
-    loader = DataLoader(ds, batch_size=1, shuffle=False, num_workers=2)
-    result = _evaluate(model, loader, device)
+    result = _evaluate(model, _build_loader(split), device)
 
     # Recompute the report with the tuned threshold (has no effect if 0.5).
     if tune_threshold_fpr is not None:
@@ -365,7 +470,8 @@ def run_evaluation(
     metrics_dir = Path(paths["outputs"]["metrics"])
     metrics_dir.mkdir(parents=True, exist_ok=True)
     suffix = "_tuned" if tune_threshold_fpr is not None else ""
-    out_path = metrics_dir / f"baseline_{split}{suffix}.json"
+    prefix = "temporal" if is_temporal else "baseline"
+    out_path = metrics_dir / f"{prefix}_{split}{suffix}.json"
     payload = result["report"].to_dict()
     payload["threshold"] = threshold
     with out_path.open("w") as f:

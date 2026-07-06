@@ -1,22 +1,29 @@
 # =====================================================================
-# Training configuration — Milestone 4 baseline
+# Training configuration — Milestone 5 temporal head
+# =====================================================================
+# The trainer auto-detects whether the model is a mean-pool baseline or
+# a temporal detector (via configs/model.yaml's temporal_head.type) and
+# switches between frame-level and video-level batching accordingly.
+#
+# For the temporal detector each sample is 32 face crops, so batch_size
+# is much lower than the baseline's 32 to keep memory + wall time sane.
 # =====================================================================
 
 train:
   seed: 42
   device: null                    # null = auto-detect (mps on Apple Silicon)
 
-  epochs: 5                       # baseline — bump to 10 if val F1 still climbing
-  batch_size: 32
+  epochs: 5
+  batch_size: 8                   # video-level batches; each sample = 32 crops
   num_workers: 4
 
   optimizer:
     name: "adamw"
-    lr: 0.0003                    # 3e-4 — standard for fine-tuning ImageNet CNNs
+    lr: 0.0001                    # 1e-4 — a touch lower than baseline's 3e-4
     weight_decay: 0.0001
 
   scheduler:
-    name: "cosine"                # cosine annealing over `epochs`
+    name: "cosine"
     warmup_epochs: 0
 
   loss:
@@ -24,7 +31,7 @@ train:
     label_smoothing: 0.05
 
   augmentation:
-    enabled: false                # Milestone 4 uses raw crops; augmentation added later
+    enabled: false
     horizontal_flip: null
     color_jitter: null
     random_crop: null
@@ -35,5 +42,5 @@ train:
     metric: "val_f1"
 
   logging:
-    log_every: 50                 # log train loss every 50 steps
+    log_every: 25                 # video-level → fewer steps → log more often
     tracker: "mlflow"

@@ -186,6 +186,55 @@ def _group_by_video(samples: list[FaceSample]) -> list[_VideoIndex]:
     return videos
 
 
+def pad_video_collate(batch: list[dict], pad_to: int) -> dict:
+    """Custom collate function for :class:`FaceVideoDataset`.
+
+    Pads every clip in the batch to ``pad_to`` frames by repeating a
+    zero-frame at the end, and emits a boolean ``padding_mask`` so
+    transformer heads can zero-out attention on padded positions.
+
+    Args:
+        batch: List of dicts from :meth:`FaceVideoDataset.__getitem__`.
+        pad_to: Target sequence length (e.g. 32).
+
+    Returns:
+        A dict with keys ``images`` ``(B, pad_to, 3, H, W)``,
+        ``padding_mask`` ``(B, pad_to)`` bool (True where padding),
+        ``label`` ``(B,)`` long, ``video_id`` list[str],
+        ``manipulation`` list[str].
+    """
+    images_list: list[torch.Tensor] = []
+    masks_list: list[torch.Tensor] = []
+    labels: list[int] = []
+    video_ids: list[str] = []
+    manips: list[str] = []
+    for item in batch:
+        clip = item["images"]                       # (T, 3, H, W)
+        t = clip.shape[0]
+        if t > pad_to:
+            clip = clip[:pad_to]
+            t = pad_to
+        pad_len = pad_to - t
+        if pad_len > 0:
+            pad_shape = (pad_len, *clip.shape[1:])
+            padding = torch.zeros(pad_shape, dtype=clip.dtype)
+            clip = torch.cat([clip, padding], dim=0)
+        mask = torch.zeros(pad_to, dtype=torch.bool)
+        mask[t:] = True
+        images_list.append(clip)
+        masks_list.append(mask)
+        labels.append(int(item["label"]))
+        video_ids.append(str(item["video_id"]))
+        manips.append(str(item["manipulation"]))
+    return {
+        "images": torch.stack(images_list, dim=0),
+        "padding_mask": torch.stack(masks_list, dim=0),
+        "label": torch.tensor(labels, dtype=torch.long),
+        "video_id": video_ids,
+        "manipulation": manips,
+    }
+
+
 class FaceVideoDataset(Dataset[dict]):
     """Yield the full stack of face crops for one video — for evaluation.
 
