@@ -93,7 +93,14 @@ class TemporalDetector(nn.Module):
             batch_first=True,
             norm_first=True,
         )
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        # `enable_nested_tensor=False` silences a cosmetic UserWarning when
+        # `norm_first=True` — the nested-tensor fast path is not compatible
+        # with norm-first anyway, so we explicitly opt out.
+        self.transformer = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=num_layers,
+            enable_nested_tensor=False,
+        )
 
         self.classifier = nn.Sequential(
             nn.LayerNorm(hidden_dim),
