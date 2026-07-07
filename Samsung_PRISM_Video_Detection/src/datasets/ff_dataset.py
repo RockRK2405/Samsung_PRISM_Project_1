@@ -74,13 +74,20 @@ class FaceSample:
 
 
 def _manipulation_from_folder(folder_name: str, label: int) -> str:
-    """Recover the manipulation tag from the video-folder name.
+    """Recover the manipulation / source tag from the video-folder name.
 
-    Real folders are just ``"000"``, ``"001"``, … so their manipulation is
-    ``"original"``. Fake folders are ``"<Manipulation>_<AAA>_<BBB>"``, e.g.
-    ``"Deepfakes_000_003"`` → manipulation = ``"Deepfakes"``.
+    Naming conventions:
+      * FF++ reals:  ``"000"``, ``"001"``, …           → ``"original"``
+      * FF++ fakes:  ``"Deepfakes_000_003"``           → ``"Deepfakes"``
+      * Celeb-DF reals: ``"Celeb-real_id0_0000"``      → ``"Celeb-real"``
+      * Celeb-DF reals: ``"YouTube-real_00170"``       → ``"YouTube-real"``
+      * Celeb-DF fakes: ``"Celeb-synthesis_id0_..."``  → ``"Celeb-synthesis"``
+
+    A folder name without an underscore (FF++ real) always maps to
+    ``"original"`` regardless of label — preserves Milestone 4/5A
+    behaviour on FF++.
     """
-    if label == 0:
+    if "_" not in folder_name:
         return "original"
     return folder_name.split("_", 1)[0]
 
