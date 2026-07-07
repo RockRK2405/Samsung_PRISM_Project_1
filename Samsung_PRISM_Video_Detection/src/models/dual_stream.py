@@ -104,14 +104,25 @@ class DualStreamDetector(nn.Module):
     def _log_fft_magnitude(images: torch.Tensor) -> torch.Tensor:
         """Compute ``fftshift(log(1 + |FFT2(x)|))`` per image per channel, z-scored.
 
+        MPS on Apple Silicon does not support complex tensors, so the FFT
+        step runs on CPU and only the real-valued result is moved back to
+        the input device. This preprocessing has no learnable parameters,
+        so the CPU roundtrip is transparent to autograd — gradients still
+        flow through the ``freq_backbone`` that consumes this output.
+
         Args:
             images: ``(B, 3, H, W)`` float tensor. Input is already
                 ImageNet-normalised — the FFT is linear so that's fine.
 
         Returns:
-            Same-shape float tensor ready to feed to an ImageNet-pretrained CNN.
+            Same-shape float tensor on the same device as ``images``, ready
+            to feed to an ImageNet-pretrained CNN.
         """
-        fft = torch.fft.fft2(images.float())
+        src_device = images.device
+        # detach() is safe: FFT preprocessing has no learnable params.
+        x = images.detach().float().cpu() if src_device.type == "mps" else images.float()
+
+        fft = torch.fft.fft2(x)
         mag = torch.abs(fft)
         log_mag = torch.log1p(mag)
         centered = torch.fft.fftshift(log_mag, dim=(-2, -1))
@@ -119,7 +130,11 @@ class DualStreamDetector(nn.Module):
         # range an ImageNet-pretrained backbone was optimised for.
         mean = centered.mean(dim=(-1, -2), keepdim=True)
         std = centered.std(dim=(-1, -2), keepdim=True).clamp_min(1e-6)
-        return (centered - mean) / std
+        result = (centered - mean) / std
+
+        if result.device != src_device:
+            result = result.to(src_device)
+        return result
 
     # ------------------------------------------------------------------
     # Forward passes
