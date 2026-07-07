@@ -434,14 +434,29 @@ def run_evaluation(
     JSON metrics file.
     """
     device = select_device(device_pref)
-    model = build_model_from_config(model_yaml["model"]).to(device)
     ckpt = torch.load(checkpoint_path, map_location=device)
+
+    # Prefer the model config saved *inside* the checkpoint over the current
+    # configs/model.yaml on disk — the YAML may have been edited to train a
+    # different architecture since this checkpoint was saved (e.g. we swap
+    # temporal_head.type between "mean_pool" and "transformer" as milestones
+    # progress). Using the checkpoint's own config makes evaluation robust.
+    saved_model_cfg = (ckpt.get("config") or {}).get("model")
+    if saved_model_cfg:
+        head_type = (saved_model_cfg.get("temporal_head") or {}).get("type", "?")
+        logger.info("Using model config from checkpoint (temporal_head.type=%s)", head_type)
+        model_cfg = saved_model_cfg
+    else:
+        logger.info("Checkpoint has no embedded model config; falling back to configs/model.yaml")
+        model_cfg = model_yaml["model"]
+
+    model = build_model_from_config(model_cfg).to(device)
     model.load_state_dict(ckpt["state_dict"])
     logger.info("Loaded checkpoint %s (epoch=%d, val_f1=%.4f)",
                 checkpoint_path, ckpt.get("epoch", -1), ckpt.get("val_f1", float("nan")))
 
     is_temporal = isinstance(model, TemporalDetector)
-    num_frames = int(model_yaml["model"]["input"]["frames_per_clip"])
+    num_frames = int((model_cfg.get("input") or {}).get("frames_per_clip", 32))
     collate_fn = partial(pad_video_collate, pad_to=num_frames) if is_temporal else None
 
     def _build_loader(root: Path, name: str) -> DataLoader:
