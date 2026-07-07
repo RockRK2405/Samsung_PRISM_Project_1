@@ -1,5 +1,6 @@
 """Video → sampled frames → cropped-face pipeline."""
 
+from src.preprocessing.celeb_df import CelebDFRecord, parse_test_list
 from src.preprocessing.face_detector import MTCNNFaceDetector, save_crop
 from src.preprocessing.frame_extractor import FrameExtractor
 from src.preprocessing.manifest import (
@@ -12,12 +13,14 @@ from src.preprocessing.manifest import (
 )
 
 __all__ = [
+    "CelebDFRecord",
     "FF_MANIPULATIONS",
     "FF_REAL_FOLDER",
     "FrameExtractor",
     "MTCNNFaceDetector",
     "VideoRecord",
     "group_split",
+    "parse_test_list",
     "save_crop",
     "scan_ff_c23",
     "write_manifest",

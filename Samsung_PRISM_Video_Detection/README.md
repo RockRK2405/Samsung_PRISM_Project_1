@@ -148,7 +148,8 @@ target so future modules can be built into their correct slots.
 | 2 | Dataset survey & subset selection (FaceForensics++, Celeb-DF)   | **Done** — FF++ c23 primary set + 32 frames uniform / 224×224 crops locked in (`ADR-002`) |
 | 3 | Frame extraction & face-detection pipeline                      | **Done** — `src/preprocessing/`, `scripts/prepare_dataset.py` |
 | 4 | Per-frame CNN baseline (XceptionNet / EfficientNet)             | **Done** — EfficientNet-B0 + mean-pool (`src/models/baseline.py`) |
-| 5 | Temporal aggregation head                                       | **In progress** — transformer encoder + CLS token, config-selectable (`ADR-003`) |
+| 5 | Temporal aggregation head                                       | **Done — negative result kept.** Transformer head shipped and config-selectable (`ADR-003`), but on FF++ c23 it under-performed mean-pool at the 5-epoch training budget (F1=0.9748 vs 0.9862, NeuralTextures −5 pp). Baseline `best.pt` remains the production model. |
+| 5B | Cross-dataset generalisation (Celeb-DF v2)                      | **In progress** — extraction CLI + `evaluate.py --dataset celeb_df_v2` |
 | 6 | Dual-stream (RGB + frequency) upgrade                           | Planned |
 | 7 | Explainability layer (GradCAM / attention maps)                 | Planned |
 | 8 | Cross-dataset evaluation & robustness testing                   | Planned |
@@ -279,6 +280,32 @@ python scripts/evaluate.py --split test
 
 # Tune the decision threshold on val so FPR ≤ 5% at test
 python scripts/evaluate.py --split test --tune-threshold-fpr 0.05
+```
+
+### Cross-dataset evaluation on Celeb-DF v2 (Milestone 5B)
+
+Get Celeb-DF v2 onto disk (the official request form is at
+https://github.com/yuezunli/celeb-deepfakeforensics; several Kaggle
+mirrors also exist). You need the folders `Celeb-real/`,
+`YouTube-real/`, `Celeb-synthesis/`, plus the file
+`List_of_testing_videos.txt`.
+
+Extract face crops for the official 518-video test split:
+
+```bash
+# Smoke test on 5 videos first (~1 min)
+python scripts/prepare_celeb_df.py --dataset-root ~/Downloads/Celeb-DF-v2 --limit 5
+
+# Full extraction (~30–60 min on CPU MTCNN)
+python scripts/prepare_celeb_df.py --dataset-root ~/Downloads/Celeb-DF-v2
+```
+
+Evaluate the FF++-trained baseline on Celeb-DF (threshold tuned on
+FF++ val — the distribution the model actually knows):
+
+```bash
+python scripts/evaluate.py --dataset celeb_df_v2 --split test \\
+    --checkpoint checkpoints/best.pt --tune-threshold-fpr 0.05
 ```
 
 Artefacts:

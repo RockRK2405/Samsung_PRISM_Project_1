@@ -414,14 +414,21 @@ def run_evaluation(
     split: str,
     device_pref: str | None,
     tune_threshold_fpr: float | None = None,
+    tune_faces_root: Path | None = None,
+    dataset_name: str = "ff_c23",
 ) -> dict:
     """Load a checkpoint and evaluate it on the given split.
 
     Args:
-        tune_threshold_fpr: If set, first evaluate the val split to pick the
-            lowest threshold whose val FPR is ``<= tune_threshold_fpr``,
-            then apply that threshold when evaluating ``split``. This lets us
-            satisfy an "FPR ≤ 5%" project target without retraining.
+        tune_threshold_fpr: If set, tune the threshold on val so its FPR is
+            ``<= tune_threshold_fpr``, then apply that threshold to ``split``.
+        tune_faces_root: If tuning, which dataset root to tune on. Defaults
+            to ``faces_root`` (in-distribution tuning). For cross-dataset
+            evaluation, pass the source dataset's root (e.g. FF++) here so
+            the threshold is calibrated on a distribution we've actually
+            trained on.
+        dataset_name: Short identifier used in the output-metrics filename
+            (e.g. ``ff_c23``, ``celeb_df_v2``).
 
     Returns the same dict shape as ``_evaluate`` plus the write-path of the
     JSON metrics file.
@@ -437,26 +444,27 @@ def run_evaluation(
     num_frames = int(model_yaml["model"]["input"]["frames_per_clip"])
     collate_fn = partial(pad_video_collate, pad_to=num_frames) if is_temporal else None
 
-    def _build_loader(name: str) -> DataLoader:
-        ds = FaceVideoDataset(faces_root, name)
+    def _build_loader(root: Path, name: str) -> DataLoader:
+        ds = FaceVideoDataset(root, name)
         return DataLoader(ds, batch_size=1, shuffle=False, num_workers=2, collate_fn=collate_fn)
 
     threshold = 0.5
     if tune_threshold_fpr is not None:
-        val_result = _evaluate(model, _build_loader("val"), device)
+        tune_root = tune_faces_root if tune_faces_root is not None else faces_root
+        val_result = _evaluate(model, _build_loader(tune_root, "val"), device)
         threshold = find_threshold_for_fpr(
             np.asarray(val_result["labels"]),
             np.asarray(val_result["scores"]),
             max_fpr=tune_threshold_fpr,
         )
         logger.info(
-            "Threshold tuned on val: %.4f (target FPR ≤ %.2f%%)",
-            threshold, tune_threshold_fpr * 100,
+            "Threshold tuned on val (%s): %.4f (target FPR ≤ %.2f%%)",
+            tune_root.name, threshold, tune_threshold_fpr * 100,
         )
 
     if split not in {"val", "test"}:
         raise ValueError(f"split must be 'val' or 'test', got {split!r}")
-    result = _evaluate(model, _build_loader(split), device)
+    result = _evaluate(model, _build_loader(faces_root, split), device)
 
     # Recompute the report with the tuned threshold (has no effect if 0.5).
     if tune_threshold_fpr is not None:
@@ -471,7 +479,8 @@ def run_evaluation(
     metrics_dir.mkdir(parents=True, exist_ok=True)
     suffix = "_tuned" if tune_threshold_fpr is not None else ""
     prefix = "temporal" if is_temporal else "baseline"
-    out_path = metrics_dir / f"{prefix}_{split}{suffix}.json"
+    ds_tag = "" if dataset_name == "ff_c23" else f"_{dataset_name}"
+    out_path = metrics_dir / f"{prefix}{ds_tag}_{split}{suffix}.json"
     payload = result["report"].to_dict()
     payload["threshold"] = threshold
     with out_path.open("w") as f:
