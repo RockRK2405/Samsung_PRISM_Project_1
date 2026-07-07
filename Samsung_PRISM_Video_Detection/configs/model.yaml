@@ -1,17 +1,21 @@
 # =====================================================================
-# Model configuration — Milestone 5 temporal head
+# Model configuration — Milestone 6 dual-stream detector
 # =====================================================================
-# Architecture: per-frame EfficientNet-B0 features → learned CLS token
-# + positional embeddings → transformer encoder → linear classifier.
-# See src/models/temporal.py and ADR-003 for the full rationale.
+# Architecture:
+#   RGB backbone  (frozen, warm-started from Milestone 4 checkpoints/best.pt)
+#   FFT backbone  (ImageNet init, trained end-to-end)
+#   Concat features → LayerNorm + Dropout + Linear(2560, 2)
+#   Mean-pool over frames at video level.
 #
-# To fall back to the Milestone-4 baseline (mean-pool), set
-# temporal_head.type: "mean_pool" — the training script auto-dispatches
-# on this field, no code changes needed.
+# See src/models/dual_stream.py and ADR-004.
+#
+# To roll back to previous milestones:
+#   Milestone 5 (transformer): frequency_stream.enabled=false, temporal_head.type=transformer
+#   Milestone 4 (baseline):    frequency_stream.enabled=false, temporal_head.type=mean_pool
 # =====================================================================
 
 model:
-  name: "temporal_efficientnet_b0"
+  name: "dual_stream_efficientnet_b0"
   backbone: "tf_efficientnet_b0.ns_jft_in1k"
   pretrained: true
 
@@ -23,16 +27,17 @@ model:
   spatial_stream:
     enabled: true
     backbone: "tf_efficientnet_b0.ns_jft_in1k"
+    freeze: true                        # freeze RGB backbone during training
+    warm_start: "checkpoints/best.pt"   # load Milestone-4 baseline's backbone weights
 
   frequency_stream:
-    enabled: false
-    transform: null
+    enabled: true                       # THIS is what selects the dual-stream family
+    transform: "log_fft_magnitude"
 
   temporal_head:
-    type: "transformer"       # "mean_pool" (Milestone 4) | "transformer" (Milestone 5)
-    hidden_dim: 256
-    num_layers: 2
-    num_heads: 4
+    type: "mean_pool"
+    hidden_dim: null
+    num_layers: null
 
   classifier:
     num_classes: 2

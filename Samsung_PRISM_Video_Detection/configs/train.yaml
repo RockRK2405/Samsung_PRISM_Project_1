@@ -1,12 +1,9 @@
 # =====================================================================
-# Training configuration — Milestone 5 temporal head
+# Training configuration — Milestone 6 dual-stream detector
 # =====================================================================
-# The trainer auto-detects whether the model is a mean-pool baseline or
-# a temporal detector (via configs/model.yaml's temporal_head.type) and
-# switches between frame-level and video-level batching accordingly.
-#
-# For the temporal detector each sample is 32 face crops, so batch_size
-# is much lower than the baseline's 32 to keep memory + wall time sane.
+# The trainer auto-detects the model family via configs/model.yaml.
+# The dual-stream detector trains frame-level (like Milestone 4) so
+# we can go back to the larger batch size.
 # =====================================================================
 
 train:
@@ -14,12 +11,13 @@ train:
   device: null                    # null = auto-detect (mps on Apple Silicon)
 
   epochs: 5
-  batch_size: 8                   # video-level batches; each sample = 32 crops
+  batch_size: 24                  # frame-level. RGB frozen, so memory is closer to
+                                  # the M4 baseline than to the temporal model.
   num_workers: 4
 
   optimizer:
     name: "adamw"
-    lr: 0.0001                    # 1e-4 — a touch lower than baseline's 3e-4
+    lr: 0.0003                    # 3e-4 — same as Milestone 4 baseline
     weight_decay: 0.0001
 
   scheduler:
@@ -32,9 +30,6 @@ train:
 
   augmentation:
     enabled: false
-    horizontal_flip: null
-    color_jitter: null
-    random_crop: null
 
   checkpointing:
     save_every: null
@@ -42,5 +37,5 @@ train:
     metric: "val_f1"
 
   logging:
-    log_every: 25                 # video-level → fewer steps → log more often
+    log_every: 50
     tracker: "mlflow"

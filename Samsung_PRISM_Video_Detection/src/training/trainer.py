@@ -32,11 +32,13 @@ from src.datasets import FaceFrameDataset, FaceVideoDataset, pad_video_collate
 from src.evaluation import compute_report, find_threshold_for_fpr
 from src.models import (
     BaselineDetector,
+    DualStreamDetector,
     TemporalDetector,
     build_baseline_from_config,
     build_model_from_config,
+    warm_start_rgb_from_baseline,
 )
-from src.utils import get_logger, select_device, set_seed
+from src.utils import get_logger, project_root, select_device, set_seed
 
 logger = get_logger(__name__)
 
@@ -285,8 +287,23 @@ def run_training(
 
     model = build_model_from_config(model_yaml["model"]).to(device)
     is_temporal = isinstance(model, TemporalDetector)
+    is_dual = isinstance(model, DualStreamDetector)
+
+    # Optional warm-start of the RGB stream from a baseline checkpoint —
+    # the standard way to add a frequency stream without re-learning
+    # what the RGB baseline already knows.
+    warm_start_path = (model_yaml["model"].get("spatial_stream") or {}).get("warm_start")
+    if is_dual and warm_start_path:
+        wsp = Path(warm_start_path)
+        if not wsp.is_absolute():
+            wsp = project_root() / wsp
+        warm_start_rgb_from_baseline(model, wsp)
+        model.to(device)   # ensure the just-loaded tensors land on the training device
+
     logger.info(
-        "Training mode: %s", "video-level (temporal)" if is_temporal else "frame-level (baseline)"
+        "Training mode: %s",
+        "video-level (temporal)" if is_temporal
+        else ("frame-level (dual-stream RGB+FFT)" if is_dual else "frame-level (baseline)"),
     )
 
     criterion = nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing)
@@ -301,12 +318,18 @@ def run_training(
         experiment_name = "temporal_efficientnet_b0"
     else:
         train_loader, val_loader, _test_loader = _make_loaders_frame(faces_root, cfg)
-        experiment_name = cfg.experiment_name
+        experiment_name = "dual_stream_efficientnet_b0" if is_dual else cfg.experiment_name
 
     cfg.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    # Name the checkpoint after the model — keeps Milestone-4 baseline and
-    # Milestone-5 temporal checkpoints from clobbering each other.
-    ckpt_name = "best.pt" if not is_temporal else "best_temporal.pt"
+    # Name the checkpoint after the model — keeps the milestone-4
+    # baseline, milestone-5 temporal, and milestone-6 dual-stream
+    # checkpoints from clobbering each other.
+    if is_temporal:
+        ckpt_name = "best_temporal.pt"
+    elif is_dual:
+        ckpt_name = "best_dual.pt"
+    else:
+        ckpt_name = "best.pt"
     best_ckpt = cfg.checkpoint_dir / ckpt_name
 
     # MLflow deprecated the file-store backend in 3.x; use SQLite instead.
@@ -493,7 +516,12 @@ def run_evaluation(
     metrics_dir = Path(paths["outputs"]["metrics"])
     metrics_dir.mkdir(parents=True, exist_ok=True)
     suffix = "_tuned" if tune_threshold_fpr is not None else ""
-    prefix = "temporal" if is_temporal else "baseline"
+    if is_temporal:
+        prefix = "temporal"
+    elif isinstance(model, DualStreamDetector):
+        prefix = "dual"
+    else:
+        prefix = "baseline"
     ds_tag = "" if dataset_name == "ff_c23" else f"_{dataset_name}"
     out_path = metrics_dir / f"{prefix}{ds_tag}_{split}{suffix}.json"
     payload = result["report"].to_dict()
