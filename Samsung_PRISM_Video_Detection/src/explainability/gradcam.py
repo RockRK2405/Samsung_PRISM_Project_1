@@ -72,16 +72,34 @@ class FrameGradCAM:
             target_layers=[_target_layer(self.model)],
         )
 
-    def __call__(self, images: torch.Tensor) -> np.ndarray:
-        """Batched GradCAM for the ``synthetic`` (class-index 1) target.
+    def __call__(
+        self,
+        images: torch.Tensor,
+        target_classes: list[int] | None = None,
+    ) -> np.ndarray:
+        """Batched GradCAM for the model's decision.
 
         Args:
             images: ``(B, 3, 224, 224)`` normalised float tensor.
+            target_classes: Optional per-frame class index to explain
+                (``0`` real, ``1`` synthetic). When ``None`` (default),
+                each frame is explained for its *own predicted class* —
+                the honest interpretation of "why did the model decide
+                this?" For a real prediction this shows what looked real;
+                for a synthetic prediction it shows what looked
+                synthetic. Hard-coding class 1 was a bug in the first
+                cut of this code — it produced diffuse noise on
+                correctly-called reals and cratered the aggregate
+                explainability score.
 
         Returns:
             ``(B, 224, 224)`` float32 heatmap in ``[0, 1]``.
         """
         images = images.to(self.device)
-        targets = [ClassifierOutputTarget(1) for _ in range(images.shape[0])]
-        cam = self._cam(input_tensor=images, targets=targets)
+        if target_classes is None:
+            with torch.no_grad():
+                logits = self.model(images)
+                target_classes = [int(c) for c in logits.argmax(dim=-1).cpu().tolist()]
+        cam_targets = [ClassifierOutputTarget(int(c)) for c in target_classes]
+        cam = self._cam(input_tensor=images, targets=cam_targets)
         return np.asarray(cam, dtype=np.float32)
