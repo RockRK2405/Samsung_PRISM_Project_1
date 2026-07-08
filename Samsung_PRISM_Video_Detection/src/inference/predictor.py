@@ -36,11 +36,25 @@ logger = get_logger(__name__)
 # Output schema
 # ---------------------------------------------------------------------
 
+#: Public modality identifier — the fusion engine keys per-modality
+#: modules by this string. Do not rename.
+MODALITY: str = "video"
+
+#: Bumped when the DetectionResult wire format changes in an incompatible
+#: way (renamed field, removed field, changed semantics). Adding new
+#: optional fields does NOT bump the version.
+SCHEMA_VERSION: int = 1
+
+
 @dataclass
 class DetectionResult:
     """Per-video prediction payload consumed by the fusion engine.
 
     Attributes:
+        schema_version: Wire-format version. Match against
+            :data:`SCHEMA_VERSION` on the fusion side.
+        modality: Always ``"video"``. Lets the fusion engine confirm which
+            per-modality module produced the payload.
         video_path: The input video's path.
         prediction: ``"real"`` or ``"synthetic"``.
         prob_synthetic: Video-level P(synthetic) in ``[0, 1]``.
@@ -52,7 +66,6 @@ class DetectionResult:
         num_frames_used: Number of frames the model actually scored
             (may be < ``frames_per_video`` if MTCNN missed some).
         explainability_score: Face-localisation fraction in ``[0, 1]``.
-            The worklet target is ≥ 0.85.
         heatmap_dir: Directory holding per-frame overlays (if produced).
         timeline_path: Path to the per-frame timeline PNG (if produced).
         meta: Freeform extras (model name, checkpoint path, git commit, ...).
@@ -69,6 +82,8 @@ class DetectionResult:
     heatmap_dir: str | None = None
     timeline_path: str | None = None
     meta: dict[str, Any] = field(default_factory=dict)
+    schema_version: int = SCHEMA_VERSION
+    modality: str = MODALITY
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -77,6 +92,24 @@ class DetectionResult:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2)
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "DetectionResult":
+        """Reconstruct a :class:`DetectionResult` from a plain dict.
+
+        Used by the fusion engine (and by our tests) to load a stored
+        payload back into a typed object. Unknown fields are silently
+        dropped; missing required fields raise ``KeyError``.
+        """
+        allowed = {f.name for f in cls.__dataclass_fields__.values()}
+        clean = {k: v for k, v in payload.items() if k in allowed}
+        return cls(**clean)
+
+    @classmethod
+    def from_json(cls, path: Path) -> "DetectionResult":
+        """Load a :class:`DetectionResult` from a JSON file on disk."""
+        with Path(path).open("r", encoding="utf-8") as f:
+            return cls.from_dict(json.load(f))
 
 
 # ---------------------------------------------------------------------
@@ -121,6 +154,23 @@ class VideoDetector:
         logger.info(
             "VideoDetector ready: checkpoint=%s model=%s device=%s threshold=%.3f",
             self.checkpoint_path.name, type(self.model).__name__, self.device, self.threshold,
+        )
+
+    @classmethod
+    def load_default(cls, device: str | torch.device | None = None) -> "VideoDetector":
+        """Load the project's canonical production detector.
+
+        Reads ``checkpoints/best.pt`` (the Milestone-4 baseline that
+        remained the best model on FF++) and applies the FF++-val-tuned
+        FPR ≤ 5% threshold (``0.5872``). This is the entry point the
+        fusion engine should call when it doesn't want to hand-pick a
+        checkpoint.
+        """
+        root = project_root()
+        return cls(
+            checkpoint_path=root / "checkpoints" / "best.pt",
+            threshold=0.5872,
+            device=device,
         )
 
     # ------------------------------------------------------------------

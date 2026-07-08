@@ -153,7 +153,7 @@ target so future modules can be built into their correct slots.
 | 6 | Dual-stream (RGB + frequency) upgrade                           | **Done — negative result kept.** FFT stream did not improve accuracy on FF++ (identical to M4 baseline) nor close the Celeb-DF cross-dataset gap (AUC +0.48 pp, noise). See `docs/experiments/EXP-002-dual-stream-fft.md`. Baseline `best.pt` remains the production model. |
 | 7 | Explainability layer (GradCAM / attention maps)                 | **Done** — GradCAM overlays + per-frame timelines + `DetectionResult` JSON API. Face-localisation aggregate 0.31 (below the ≥0.85 target) on a 20-video stratified sample — the model correctly attends to face for reals (0.84) and to boundary artefacts for fakes (0.05–0.25), a well-documented CNN-deepfake-detector strategy. See `docs/experiments/EXP-003-explainability-metric.md`. |
 | 8 | Cross-dataset evaluation & robustness testing                   | Planned |
-| 9 | Integration hooks for the multi-modal fusion engine             | Planned |
+| 9 | Integration hooks for the multi-modal fusion engine             | **Done** — public `predict()` + `VideoDetector.load_default()` + versioned `DetectionResult` schema. Full teammate quickstart in [`docs/FUSION_INTEGRATION.md`](docs/FUSION_INTEGRATION.md); JSON schema in [`schemas/video_detection_result.schema.json`](schemas/video_detection_result.schema.json). |
 
 ---
 

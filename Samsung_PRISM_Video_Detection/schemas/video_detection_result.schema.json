@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://samsung-prism.local/26TS08/schemas/video_detection_result.schema.json",
+  "title": "Video Detection Result",
+  "description": "Wire format the video-detection module emits and the fusion engine consumes. Version 1.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "modality",
+    "video_path",
+    "prediction",
+    "prob_synthetic",
+    "confidence",
+    "threshold",
+    "per_frame_scores",
+    "num_frames_used"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Wire-format version. Bumped only on incompatible changes."
+    },
+    "modality": {
+      "type": "string",
+      "const": "video",
+      "description": "Fixed identifier — lets the fusion engine key modules by modality."
+    },
+    "video_path": {
+      "type": "string",
+      "description": "Path to the input video the prediction is about."
+    },
+    "prediction": {
+      "type": "string",
+      "enum": ["real", "synthetic"],
+      "description": "Discrete decision produced by applying the threshold to prob_synthetic."
+    },
+    "prob_synthetic": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Video-level P(synthetic), mean-pooled from per-frame scores."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Threshold margin, mapped to [0, 1]. 0 = right on the boundary; 1 = maximally confident."
+    },
+    "threshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Decision threshold that produced `prediction`."
+    },
+    "per_frame_scores": {
+      "type": "array",
+      "items": {"type": "number", "minimum": 0, "maximum": 1},
+      "description": "One P(synthetic) per usable extracted frame."
+    },
+    "num_frames_used": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of frames the model actually scored."
+    },
+    "explainability_score": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Peak-inside-central metric averaged over the video's frames. Null when explanation was skipped."
+    },
+    "heatmap_dir": {
+      "type": ["string", "null"],
+      "description": "Directory containing per-frame GradCAM PNGs. Null when explanation was skipped."
+    },
+    "timeline_path": {
+      "type": ["string", "null"],
+      "description": "Path to the per-frame P(synthetic) timeline PNG. Null when explanation was skipped."
+    },
+    "meta": {
+      "type": "object",
+      "description": "Freeform provenance — model class, checkpoint path, backbone id, etc.",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
