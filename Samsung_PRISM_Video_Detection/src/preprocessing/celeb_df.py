@@ -166,6 +166,7 @@ def scan_celeb_df_training(
 
     if not dataset_root.is_dir():
         raise FileNotFoundError(f"Celeb-DF root not found: {dataset_root}")
+    dataset_root = dataset_root.resolve()   # parse_test_list resolves video paths, so we must too
 
     test_records = parse_test_list(test_list_path, dataset_root)
     test_identities = {_identity_of(str(r.video_path.relative_to(dataset_root))) for r in test_records}
