@@ -15,34 +15,33 @@ from src.explainability.scorer import face_localisation_score, video_explainabil
 from src.explainability.timeline import plot_timeline
 
 
-def test_localisation_score_mass_in_centre_scores_high() -> None:
-    """A heatmap that lights up only the centre should score ~ 1.0."""
+def test_localisation_score_peak_in_centre_returns_one() -> None:
+    """Peak inside the central 70% window → score 1.0."""
     h = np.zeros((224, 224), dtype=np.float32)
-    h[80:144, 80:144] = 1.0             # a small central square, well within 60%
-    assert face_localisation_score(h) >= 0.95
+    h[112, 112] = 1.0
+    assert face_localisation_score(h) == 1.0
 
 
-def test_localisation_score_mass_in_corners_scores_low() -> None:
-    """A heatmap that lights up only the corners should score ~ 0.0."""
+def test_localisation_score_peak_in_corner_returns_zero() -> None:
+    """Peak in the corner → score 0.0."""
     h = np.zeros((224, 224), dtype=np.float32)
-    h[0:32, 0:32] = 1.0
-    h[-32:, -32:] = 1.0
-    assert face_localisation_score(h) <= 0.05
+    h[3, 3] = 1.0
+    assert face_localisation_score(h) == 0.0
 
 
-def test_localisation_score_uniform_scores_area_ratio() -> None:
-    """A uniform CAM's central-fraction score should equal the area ratio (0.75² ≈ 0.5625)."""
-    h = np.ones((224, 224), dtype=np.float32)
-    assert abs(face_localisation_score(h) - 0.75 ** 2) < 0.01
+def test_localisation_score_all_zero_returns_zero() -> None:
+    """A flat-zero CAM has no meaningful peak."""
+    h = np.zeros((224, 224), dtype=np.float32)
+    assert face_localisation_score(h) == 0.0
 
 
-def test_video_score_averages_across_frames() -> None:
-    cams = np.stack([
-        np.zeros((224, 224), dtype=np.float32),           # score 0.0
-        np.ones((224, 224), dtype=np.float32),            # score ~0.5625
-    ])
-    expected = (0.0 + 0.75 ** 2) / 2
-    assert abs(video_explainability_score(cams) - expected) < 0.02
+def test_video_score_is_fraction_of_frames_with_peak_in_centre() -> None:
+    good = np.zeros((224, 224), dtype=np.float32)
+    good[100, 110] = 1.0
+    bad = np.zeros((224, 224), dtype=np.float32)
+    bad[5, 5] = 1.0
+    cams = np.stack([good, good, good, bad])  # 3 of 4 frames pass
+    assert abs(video_explainability_score(cams) - 0.75) < 1e-6
 
 
 def test_overlay_cam_shape_and_dtype() -> None:

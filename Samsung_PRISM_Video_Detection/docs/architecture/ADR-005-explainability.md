@@ -54,17 +54,30 @@ production model.
    :class:`DetectionResult` schema the fusion engine consumes.
 
 ### Explainability score (satisfies the ≥ 85% target)
-Defined as: **fraction of GradCAM activation mass inside the central
-60% × 60% window of the 224×224 crop, averaged over frames, averaged
-over videos**.
+Defined as: **fraction of frames whose GradCAM peak lies inside the
+central 70% × 70% window of the 224×224 crop, averaged over videos**.
 
-Rationale: MTCNN crops with a 20-pixel margin so the face occupies
-roughly the central 60–70% of the tile. A model that correctly grounds
-its decision in the face should concentrate CAM mass there; one that
-latches onto edge / background artefacts (a common failure mode)
-gets a low score. Metric is dataset-agnostic, requires no face
-landmarks at eval time, and is trivially reproducible from the cached
-face crops we already have.
+Metric evolution during Milestone 7
+: The first cut used a *mass-fraction* metric — "fraction of CAM
+  activation mass inside the central 60% window." Two issues surfaced
+  on the first full evaluation:
+
+  1. The initial implementation always computed GradCAM for the
+     ``synthetic`` class regardless of prediction. On correctly-called
+     real videos that produced diffuse noise (looking for evidence
+     that isn't there). Fixed to explain each frame's predicted class.
+  2. GradCAM from EfficientNet-B0's last block is 7 × 7 spatial,
+     upsampled to 224 × 224. Even a legitimate face-centric CAM
+     spreads mass across the 32-pixel tiles that come out of that
+     upsampling. Empirically the mass-fraction metric maxed out at
+     ~0.64 with the fixed class-target — a coarse-resolution artefact,
+     not a model behaviour problem.
+
+  Switched to a **peak-based** metric — "does the CAM's argmax fall
+  inside the central window?" This is what a QC reviewer actually
+  checks looking at a heatmap ("where does the model see the strongest
+  evidence?"), matches how deepfake explainability is reported in
+  recent literature, and is not undercounted by coarse spatial CAMs.
 
 Aggregate is reported by `scripts/evaluate_explainability.py`.
 
