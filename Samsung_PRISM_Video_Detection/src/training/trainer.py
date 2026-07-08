@@ -28,6 +28,8 @@ from torch.utils.data import DataLoader
 
 from functools import partial
 
+from torch.utils.data import ConcatDataset
+
 from src.datasets import FaceFrameDataset, FaceVideoDataset, pad_video_collate
 from src.evaluation import compute_report, find_threshold_for_fpr
 from src.models import (
@@ -92,10 +94,23 @@ def _train_config_from_dict(cfg: dict, paths: dict) -> TrainConfig:
 # ---------------------------------------------------------------------
 
 def _make_loaders_frame(
-    faces_root: Path, cfg: TrainConfig
+    faces_root: Path,
+    cfg: TrainConfig,
+    extra_training_roots: list[Path] | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
-    """Frame-level loaders — used by the mean-pool baseline (Milestone 4)."""
-    train_ds = FaceFrameDataset(faces_root, "train")
+    """Frame-level loaders — used by the mean-pool baseline (Milestone 4).
+
+    ``extra_training_roots`` concatenates additional face-crop caches into
+    the training set (Option A — mixed FF++ + Celeb-DF training). Val
+    and test remain on the primary root so numbers stay comparable to
+    Milestones 4–7. Point ``scripts/evaluate.py --dataset`` at the extra
+    roots for their own held-out test evaluations.
+    """
+    train_datasets: list[FaceFrameDataset] = [FaceFrameDataset(faces_root, "train")]
+    for extra in extra_training_roots or []:
+        train_datasets.append(FaceFrameDataset(extra, "train"))
+        logger.info("Added extra training root: %s", extra)
+    train_ds = train_datasets[0] if len(train_datasets) == 1 else ConcatDataset(train_datasets)
     val_ds = FaceVideoDataset(faces_root, "val")
     test_ds = FaceVideoDataset(faces_root, "test")
 
@@ -266,7 +281,11 @@ def _evaluate(
 # ---------------------------------------------------------------------
 
 def run_training(
-    train_yaml: dict, model_yaml: dict, paths: dict, faces_root: Path
+    train_yaml: dict,
+    model_yaml: dict,
+    paths: dict,
+    faces_root: Path,
+    extra_training_roots: list[Path] | None = None,
 ) -> Path:
     """Train the baseline detector end-to-end.
 
@@ -317,17 +336,22 @@ def run_training(
         )
         experiment_name = "temporal_efficientnet_b0"
     else:
-        train_loader, val_loader, _test_loader = _make_loaders_frame(faces_root, cfg)
+        train_loader, val_loader, _test_loader = _make_loaders_frame(
+            faces_root, cfg, extra_training_roots=extra_training_roots,
+        )
         experiment_name = "dual_stream_efficientnet_b0" if is_dual else cfg.experiment_name
+        if extra_training_roots:
+            experiment_name = experiment_name + "_mixed"
 
     cfg.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    # Name the checkpoint after the model — keeps the milestone-4
-    # baseline, milestone-5 temporal, and milestone-6 dual-stream
-    # checkpoints from clobbering each other.
+    # Name the checkpoint after the model + training-data mix — keeps
+    # every previous milestone's checkpoint intact.
     if is_temporal:
         ckpt_name = "best_temporal.pt"
     elif is_dual:
         ckpt_name = "best_dual.pt"
+    elif extra_training_roots:
+        ckpt_name = "best_mixed.pt"
     else:
         ckpt_name = "best.pt"
     best_ckpt = cfg.checkpoint_dir / ckpt_name

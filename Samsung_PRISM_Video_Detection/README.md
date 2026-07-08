@@ -152,7 +152,7 @@ target so future modules can be built into their correct slots.
 | 5B | Cross-dataset generalisation (Celeb-DF v2)                      | **Done** — FF++ baseline evaluated on Celeb-DF 518-video test split. AUC=0.7076, F1=0.8142, FPR=0.72. Landed inside the 60–75% AUC band published for FF++-only-trained models on Celeb-DF (see `docs/experiments/EXP-001-celeb-df-cross-dataset.md`). Confirms the domain-shift failure mode the fusion engine is designed to mitigate. |
 | 6 | Dual-stream (RGB + frequency) upgrade                           | **Done — negative result kept.** FFT stream did not improve accuracy on FF++ (identical to M4 baseline) nor close the Celeb-DF cross-dataset gap (AUC +0.48 pp, noise). See `docs/experiments/EXP-002-dual-stream-fft.md`. Baseline `best.pt` remains the production model. |
 | 7 | Explainability layer (GradCAM / attention maps)                 | **Done** — GradCAM overlays + per-frame timelines + `DetectionResult` JSON API. Face-localisation aggregate 0.31 (below the ≥0.85 target) on a 20-video stratified sample — the model correctly attends to face for reals (0.84) and to boundary artefacts for fakes (0.05–0.25), a well-documented CNN-deepfake-detector strategy. See `docs/experiments/EXP-003-explainability-metric.md`. |
-| 8 | Cross-dataset evaluation & robustness testing                   | Planned |
+| 8 | Cross-dataset evaluation & robustness testing                   | **In progress** — Option A: retrain on FF++ + Celeb-DF combined. See prepare_celeb_df_train.py + `--extra-training-root` flag on scripts/train.py |
 | 9 | Integration hooks for the multi-modal fusion engine             | **Done** — public `predict()` + `VideoDetector.load_default()` + versioned `DetectionResult` schema. Full teammate quickstart in [`docs/FUSION_INTEGRATION.md`](docs/FUSION_INTEGRATION.md); JSON schema in [`schemas/video_detection_result.schema.json`](schemas/video_detection_result.schema.json). |
 
 ---
@@ -306,6 +306,30 @@ FF++ val — the distribution the model actually knows):
 ```bash
 python scripts/evaluate.py --dataset celeb_df_v2 --split test \\
     --checkpoint checkpoints/best.pt --tune-threshold-fpr 0.05
+```
+
+### Mixed-dataset training on FF++ + Celeb-DF (Option A)
+
+To close the cross-dataset gap, retrain on both datasets combined.
+Extraction is the slow step (~3–5 h on M5 CPU MTCNN); training itself
+matches the baseline (~60–90 min).
+
+```bash
+# 1. Extract Celeb-DF training face crops (identity-safe from the test split).
+#    Use --max-per-source 200 for a fast smoke test first.
+python scripts/prepare_celeb_df_train.py \\
+    --dataset-root data/raw/celeb_df_v2/Celeb-DF-v2
+
+# 2. Retrain baseline on FF++ + Celeb-DF combined. Val remains FF++ so
+#    numbers stay comparable to the Milestone-4 baseline.
+python scripts/train.py \\
+    --extra-training-root data/processed/faces/celeb_df_v2
+
+# 3. Evaluate on both test sets
+python scripts/evaluate.py --checkpoint checkpoints/best_mixed.pt --split test \\
+    --tune-threshold-fpr 0.05
+python scripts/evaluate.py --checkpoint checkpoints/best_mixed.pt --split test \\
+    --dataset celeb_df_v2 --tune-threshold-fpr 0.05
 ```
 
 Artefacts:

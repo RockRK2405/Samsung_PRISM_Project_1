@@ -1,6 +1,10 @@
 """Video → sampled frames → cropped-face pipeline."""
 
-from src.preprocessing.celeb_df import CelebDFRecord, parse_test_list
+from src.preprocessing.celeb_df import (
+    CelebDFRecord,
+    parse_test_list,
+    scan_celeb_df_training,
+)
 from src.preprocessing.face_detector import MTCNNFaceDetector, save_crop
 from src.preprocessing.frame_extractor import FrameExtractor
 from src.preprocessing.manifest import (

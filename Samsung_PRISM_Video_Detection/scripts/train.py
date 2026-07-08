@@ -37,6 +37,16 @@ def main(
     batch_size: int | None = typer.Option(None, help="Override train.yaml batch_size."),
     lr: float | None = typer.Option(None, help="Override optimizer.lr."),
     device: str | None = typer.Option(None, help="Force device: mps | cuda | cpu."),
+    extra_training_root: list[Path] = typer.Option(
+        [],
+        "--extra-training-root",
+        help=(
+            "Extra face-crop dataset root to concatenate into the training "
+            "set. Can be passed multiple times. Val/test remain on FF++ so "
+            "numbers stay comparable. Example: "
+            "`--extra-training-root data/processed/faces/celeb_df_v2`."
+        ),
+    ),
 ) -> None:
     """Kick off training with the current configs (with optional CLI overrides)."""
     root = project_root()
@@ -60,7 +70,20 @@ def main(
             "`python scripts/prepare_dataset.py faces` first."
         )
 
-    ckpt = run_training(train_yaml, model_yaml, paths, faces_root)
+    resolved_extras: list[Path] = []
+    for p in extra_training_root:
+        pp = p if p.is_absolute() else (root / p)
+        if not (pp / "train").is_dir():
+            raise typer.BadParameter(
+                f"--extra-training-root {p} has no 'train/' subfolder — "
+                "did the prep script finish?"
+            )
+        resolved_extras.append(pp)
+
+    ckpt = run_training(
+        train_yaml, model_yaml, paths, faces_root,
+        extra_training_roots=resolved_extras or None,
+    )
     logger.info("Done. Best checkpoint: %s", ckpt)
 
 
