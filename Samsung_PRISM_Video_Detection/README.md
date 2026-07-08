@@ -151,7 +151,7 @@ target so future modules can be built into their correct slots.
 | 5 | Temporal aggregation head                                       | **Done — negative result kept.** Transformer head shipped and config-selectable (`ADR-003`), but on FF++ c23 it under-performed mean-pool at the 5-epoch training budget (F1=0.9748 vs 0.9862, NeuralTextures −5 pp). Baseline `best.pt` remains the production model. |
 | 5B | Cross-dataset generalisation (Celeb-DF v2)                      | **Done** — FF++ baseline evaluated on Celeb-DF 518-video test split. AUC=0.7076, F1=0.8142, FPR=0.72. Landed inside the 60–75% AUC band published for FF++-only-trained models on Celeb-DF (see `docs/experiments/EXP-001-celeb-df-cross-dataset.md`). Confirms the domain-shift failure mode the fusion engine is designed to mitigate. |
 | 6 | Dual-stream (RGB + frequency) upgrade                           | **Done — negative result kept.** FFT stream did not improve accuracy on FF++ (identical to M4 baseline) nor close the Celeb-DF cross-dataset gap (AUC +0.48 pp, noise). See `docs/experiments/EXP-002-dual-stream-fft.md`. Baseline `best.pt` remains the production model. |
-| 7 | Explainability layer (GradCAM / attention maps)                 | Planned |
+| 7 | Explainability layer (GradCAM / attention maps)                 | **In progress** — GradCAM overlays + per-frame timeline + face-localisation metric (`ADR-005`), single-video `predict()` API |
 | 8 | Cross-dataset evaluation & robustness testing                   | Planned |
 | 9 | Integration hooks for the multi-modal fusion engine             | Planned |
 
@@ -313,3 +313,28 @@ Artefacts:
 * `checkpoints/best.pt` — best-val-F1 model weights
 * `outputs/metrics/baseline_test.json` — final metrics report
 * `logs/mlruns/` — MLflow run history (browse with `mlflow ui`)
+
+### Single-video prediction + explanation (Milestone 7)
+
+Run the detector on any video and get the JSON payload the fusion
+engine will consume, plus GradCAM overlays and a per-frame timeline:
+
+```bash
+python scripts/predict.py --video path/to/clip.mp4
+```
+
+Artefacts land at:
+
+* `outputs/predictions/<clip>.json` — DetectionResult (score,
+  confidence, per-frame scores, threshold, explainability score, …)
+* `outputs/explainability/<clip>/frame_NN_gradcam.png` — heatmap
+  overlays on each face crop
+* `outputs/explainability/<clip>/timeline.png` — per-frame
+  P(synthetic) timeline
+
+Aggregate the face-localisation explainability score across the whole
+test split (worklet target ≥ 0.85):
+
+```bash
+python scripts/evaluate_explainability.py --split test
+```

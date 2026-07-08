@@ -1,5 +1,5 @@
-"""Samsung PRISM Video Detection — `inference` subpackage.
+"""Single-video prediction API — the fusion engine's entrypoint."""
 
-Placeholder. See README.md in this directory for the intended
-responsibilities of this subpackage.
-"""
+from src.inference.predictor import DetectionResult, VideoDetector
+
+__all__ = ["DetectionResult", "VideoDetector"]
