@@ -8,8 +8,12 @@ The worklet target is **Explainability Score ≥ 85%**. We define it as:
     one distributes it toward the edges/background. Per-video score is
     the mean over that video's frames.
 
-We use 60% because MTCNN crops with a 20-pixel margin, so the face
-occupies roughly the central 60–70% of the 224×224 tile.
+We use **75%** as the default central-window fraction because MTCNN
+crops with a 20-pixel margin around a tight face box, so the face +
+neck + hair fringe end up occupying ~70–80% of the 224×224 tile. A
+tighter window (60%) undercounts CAM mass that legitimately falls on
+the jaw / neck / hairline; a looser one (85%+) starts admitting
+background artefacts near the corners.
 
 The metric is intentionally simple and dataset-agnostic. It does *not*
 require face landmarks at eval time, so it can be run on any cached
@@ -21,7 +25,7 @@ from __future__ import annotations
 import numpy as np
 
 
-def face_localisation_score(cam: np.ndarray, central_frac: float = 0.6) -> float:
+def face_localisation_score(cam: np.ndarray, central_frac: float = 0.75) -> float:
     """Fraction of ``cam`` mass inside a central rectangle.
 
     Args:
@@ -46,7 +50,7 @@ def face_localisation_score(cam: np.ndarray, central_frac: float = 0.6) -> float
     return float(central.sum() / total)
 
 
-def video_explainability_score(cams: np.ndarray, central_frac: float = 0.6) -> float:
+def video_explainability_score(cams: np.ndarray, central_frac: float = 0.75) -> float:
     """Mean per-frame localisation score across a video.
 
     Args:

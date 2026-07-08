@@ -30,18 +30,19 @@ def test_localisation_score_mass_in_corners_scores_low() -> None:
     assert face_localisation_score(h) <= 0.05
 
 
-def test_localisation_score_uniform_scores_36_percent() -> None:
-    """A uniform CAM's central-fraction score should equal the area ratio (0.6² ≈ 0.36)."""
+def test_localisation_score_uniform_scores_area_ratio() -> None:
+    """A uniform CAM's central-fraction score should equal the area ratio (0.75² ≈ 0.5625)."""
     h = np.ones((224, 224), dtype=np.float32)
-    assert abs(face_localisation_score(h) - 0.36) < 0.01
+    assert abs(face_localisation_score(h) - 0.75 ** 2) < 0.01
 
 
 def test_video_score_averages_across_frames() -> None:
     cams = np.stack([
         np.zeros((224, 224), dtype=np.float32),           # score 0.0
-        np.ones((224, 224), dtype=np.float32),            # score ~0.36
+        np.ones((224, 224), dtype=np.float32),            # score ~0.5625
     ])
-    assert abs(video_explainability_score(cams) - 0.18) < 0.02
+    expected = (0.0 + 0.75 ** 2) / 2
+    assert abs(video_explainability_score(cams) - expected) < 0.02
 
 
 def test_overlay_cam_shape_and_dtype() -> None:

@@ -24,6 +24,10 @@ import typer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+import random
+
+from torch.utils.data import Subset
+
 from src.datasets import FaceVideoDataset
 from src.explainability import FrameGradCAM, video_explainability_score
 from src.models import build_model_from_config
@@ -63,14 +67,21 @@ def main(
 
     faces_root = paths["data"]["processed"] / "faces" / dataset
     ds = FaceVideoDataset(faces_root, split)
+
+    # For --limit, shuffle deterministically then take the first N so the
+    # sample spans all manipulation types instead of biasing toward the
+    # alphabetically-first bucket (which happens to be 'original' reals).
+    if limit is not None and limit < len(ds):
+        rng = random.Random(0)
+        idxs = list(range(len(ds)))
+        rng.shuffle(idxs)
+        ds = Subset(ds, idxs[:limit])
     loader = DataLoader(ds, batch_size=1, shuffle=False, num_workers=0)
 
     per_video: list[float] = []
     per_manip: dict[str, list[float]] = {}
-    total = min(limit, len(ds)) if limit else len(ds)
-    for i, batch in enumerate(tqdm(loader, total=total, unit="vid")):
-        if limit is not None and i >= limit:
-            break
+    total = len(ds)
+    for batch in tqdm(loader, total=total, unit="vid"):
         images = batch["images"][0]                          # (T, 3, H, W)
         manip = str(batch["manipulation"][0])
         cams = cammer(images)                                # (T, H, W)
