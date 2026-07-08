@@ -344,17 +344,18 @@ def run_training(
             experiment_name = experiment_name + "_mixed"
 
     cfg.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    # Name the checkpoint after the model + training-data mix — keeps
-    # every previous milestone's checkpoint intact.
+    # Name the checkpoint by (model, training-data mix) — compose both
+    # dimensions so a mixed-training run of the dual model doesn't
+    # clobber the Milestone-6 dual checkpoint.
     if is_temporal:
-        ckpt_name = "best_temporal.pt"
+        base = "best_temporal"
     elif is_dual:
-        ckpt_name = "best_dual.pt"
-    elif extra_training_roots:
-        ckpt_name = "best_mixed.pt"
+        base = "best_dual"
     else:
-        ckpt_name = "best.pt"
-    best_ckpt = cfg.checkpoint_dir / ckpt_name
+        base = "best"
+    if extra_training_roots:
+        base = base + "_mixed"
+    best_ckpt = cfg.checkpoint_dir / f"{base}.pt"
 
     # MLflow deprecated the file-store backend in 3.x; use SQLite instead.
     # A single mlflow.db under logs/mlruns/ keeps everything file-based
