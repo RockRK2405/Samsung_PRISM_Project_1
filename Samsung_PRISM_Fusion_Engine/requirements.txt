@@ -32,6 +32,18 @@ textstat>=0.7
 # gracefully to stylometric+rules-only scoring if not installed.
 transformers>=4.30
 
+# --- Video adapter (imports Samsung_PRISM_Video_Detection's src.inference,
+#     which eagerly imports its explainability + preprocessing + model
+#     submodules even when produce_explanation=False at call time) ---
+torchvision>=0.15         # already implied by image adapter, listed for clarity
+opencv-python>=4.9        # src/preprocessing/frame_extractor.py
+facenet-pytorch>=2.6      # src/preprocessing/face_detector.py (MTCNN)
+timm>=1.0                 # src/models/*.py backbones
+grad-cam>=1.5             # PyPI name for the `pytorch_grad_cam` import in
+                          # src/explainability/gradcam.py
+matplotlib>=3.8           # src/explainability/timeline.py
+rich>=13.7                # video module's logger
+
 # --- CLI ---
 typer>=0.12
 

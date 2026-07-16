@@ -48,6 +48,17 @@ def main(
     result = engine.analyze(image_path=image, audio_path=audio, text=text, video_path=video)
 
     typer.echo("")
+    typer.echo("--- Per-modality breakdown ---")
+    for modality, mr in sorted(result.modality_results.items()):
+        if mr.available:
+            typer.echo(
+                f"  {modality:6s}: prob_synthetic={mr.prob_synthetic:.4f} "
+                f"confidence={mr.confidence:.4f} latency={mr.latency_ms:.0f}ms"
+            )
+        else:
+            typer.echo(f"  {modality:6s}: UNAVAILABLE — {mr.error}")
+
+    typer.echo("")
     typer.echo("--- Fusion result ---")
     typer.echo(f"Verdict           : {result.verdict}")
     typer.echo(f"Fused score       : {result.fused_score:.4f}")
