@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About | OmniDetect</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav>
+        <div class="container nav-content">
+            <div class="nav-brand">
+                <a href="/" style="display:flex; align-items:center; gap:.65rem;">
+                    <img src="/assets/prism_logo.png" alt="PRISM Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIGZpbGw9IiMxNDI4QTAiLz48dGV4dCB4PSIxNiIgeT0iMjAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlA8L3RleHQ+PC9zdmc+';" />
+                    <span>OmniDetect</span>
+                </a>
+            </div>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/analyzer">Analyzer</a>
+                <a href="/batch">Batch</a>
+                <a href="/dashboard">Dashboard</a>
+                <a href="/about" class="active">About</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div style="max-width: 800px; margin: 0 auto;">
+            <h1 class="text-center mb-4">How OmniDetect Works</h1>
+            
+            <div class="card mb-4">
+                <h3>The Challenge</h3>
+                <p>Early AI detectors relied on simple metrics like TF-IDF or basic burstiness. Modern LLMs (GPT-4, Claude, Gemini) have learned to mimic human writing patterns, rendering old detectors obsolete. They produce varied sentence lengths, use diverse vocabulary, and can adopt informal tones.</p>
+            </div>
+            
+            <div class="card mb-4">
+                <h3>Our Solution: Multi-Signal Ensemble</h3>
+                <p>OmniDetect combines three independent analytical engines to form a single, robust ensemble prediction, making it much harder for AI to evade detection without failing on at least one signal.</p>
+                
+                <h4 class="mt-3 mb-2" style="color: var(--color-accent);">1. Enhanced Stylometry</h4>
+                <p>Extracts 30+ statistical features from the text (Burstiness coefficient, MATTR, Hapax legomena ratio, etc.) and uses a Gradient Boosting Classifier to find complex non-linear patterns.</p>
+                
+                <h4 class="mt-3 mb-2" style="color: var(--color-accent);">2. Perplexity & Surprisal Diversity</h4>
+                <p>Feeds the text through a local language model (DistilGPT-2). AI text is generally more predictable to other AI models, resulting in lower perplexity and distinct surprisal distributions (variance, skewness, kurtosis).</p>
+                
+                <h4 class="mt-3 mb-2" style="color: var(--color-accent);">3. Linguistic Patterns</h4>
+                <p>Rule-based detection of AI-typical habits: formulaic transitions ("In conclusion", "Moreover"), overconfident phrasing, hedging, and highly structured formatting.</p>
+            </div>
+            
+            <div class="card">
+                <h3>Samsung PRISM Project</h3>
+                <p>This platform was developed as part of a Samsung PRISM project focused on synthetic data detection. The goal is to provide a robust, explainable tool for distinguishing human creativity from algorithmic generation.</p>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+Metadata-Version: 2.4
+Name: prism-synthetic-detection
+Version: 2.0.0
+Summary: Multi-signal AI text detection with explainability for the PRISM project.
+Requires-Python: >=3.9
+Requires-Dist: pandas>=2.0
+Requires-Dist: scikit-learn>=1.3
+Requires-Dist: numpy>=1.24
+Requires-Dist: textstat>=0.7
+Provides-Extra: perplexity
+Requires-Dist: torch>=2.0; extra == "perplexity"
+Requires-Dist: transformers>=4.30; extra == "perplexity"
+Provides-Extra: web
+Requires-Dist: fastapi>=0.100; extra == "web"
+Requires-Dist: uvicorn[standard]>=0.20; extra == "web"
+Requires-Dist: python-multipart>=0.0.6; extra == "web"
+Provides-Extra: all
+Requires-Dist: prism-synthetic-detection[perplexity,web]; extra == "all"

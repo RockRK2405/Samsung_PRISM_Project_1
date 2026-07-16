@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | OmniDetect</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav>
+        <div class="container nav-content">
+            <div class="nav-brand">
+                <a href="/">
+                    <img src="/assets/prism_logo.png" alt="Samsung PRISM Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIGZpbGw9IiMxNDI4QTAiLz48dGV4dCB4PSIxNiIgeT0iMjAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlA8L3RleHQ+PC9zdmc+';" />
+                    <span>OmniDetect</span>
+                </a>
+            </div>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/analyzer">Analyzer</a>
+                <a href="/dashboard" class="active">Dashboard</a>
+                <a href="/about">About</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <h2 class="mb-4">Model Dashboard</h2>
+        
+        <div class="stats-grid mb-4">
+            <div class="card stat-card">
+                <div class="stat-value text-gradient" id="stat-accuracy">--</div>
+                <div>Accuracy</div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-value text-gradient" id="stat-f1">--</div>
+                <div>F1 Score</div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-value text-gradient" id="stat-roc">--</div>
+                <div>ROC AUC</div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-value text-gradient" id="stat-fpr">--</div>
+                <div>False Positive Rate</div>
+            </div>
+        </div>
+
+        <div class="analyzer-grid">
+            <div class="card">
+                <h3 class="mb-3">Confusion Matrix</h3>
+                <div style="display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px; text-align: center;">
+                    <div></div>
+                    <div class="text-muted text-sm font-bold">Predicted Human</div>
+                    <div class="text-muted text-sm font-bold">Predicted AI</div>
+                    
+                    <div class="text-muted text-sm font-bold" style="display: flex; align-items: center; justify-content: flex-end; padding-right: 1rem;">Actual Human</div>
+                    <div id="cm-tn" style="background: rgba(16, 185, 129, 0.2); padding: 1.5rem; border-radius: 4px; font-size: 1.5rem; font-weight: bold;">--</div>
+                    <div id="cm-fp" style="background: rgba(239, 68, 68, 0.2); padding: 1.5rem; border-radius: 4px; font-size: 1.5rem; font-weight: bold;">--</div>
+                    
+                    <div class="text-muted text-sm font-bold" style="display: flex; align-items: center; justify-content: flex-end; padding-right: 1rem;">Actual AI</div>
+                    <div id="cm-fn" style="background: rgba(245, 158, 11, 0.2); padding: 1.5rem; border-radius: 4px; font-size: 1.5rem; font-weight: bold;">--</div>
+                    <div id="cm-tp" style="background: rgba(16, 185, 129, 0.2); padding: 1.5rem; border-radius: 4px; font-size: 1.5rem; font-weight: bold;">--</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 class="mb-3">Model Info</h3>
+                <table style="width: 100%;">
+                    <tr>
+                        <td class="text-muted">Version</td>
+                        <td id="info-version" class="font-bold">--</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Mode</td>
+                        <td id="info-mode" class="font-bold">--</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Classifier</td>
+                        <td id="info-classifier" class="font-bold">--</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Features</td>
+                        <td id="info-features" class="font-bold">--</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Training Rows</td>
+                        <td id="info-rows" class="font-bold">--</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/js/app.js"></script>
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>
