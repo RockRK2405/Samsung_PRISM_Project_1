@@ -1,0 +1,37 @@
+# =====================================================================
+# Fusion engine — per-modality weights (v1, provisional)
+# =====================================================================
+# The worklet architecture (slide 6, "Multi-Modal Fusion Engine") calls
+# for "modality weights tuned on validation set performance." We don't
+# yet have a joint, cross-modality validation set to tune against (each
+# module was validated independently, on its own dataset, under its own
+# task setup) — so these starting weights are a defensible provisional
+# choice, NOT a calibrated result. Retune once a shared validation
+# bundle exists (Milestone: fusion evaluation harness).
+#
+# Rationale for the starting point — roughly proportional to each
+# module's own reported accuracy/F1, with two adjustments:
+#   - Text is downweighted below its raw F1 (92.8%) because no trained
+#     stylometric model.pkl exists yet in the repo; it currently runs
+#     on perplexity + rule-based signals only (weaker, degraded mode).
+#     Weight should go back up once a real model.pkl is trained.
+#   - Image is downweighted below its raw accuracy (95.18%) because
+#     that number is from CIFAKE (general AI-image detection), a
+#     different and easier task than deepfake/GAN-face detection, and
+#     the checkpoint was trained for only 1 epoch (proof-of-concept,
+#     not a finished training run).
+# =====================================================================
+
+weights:
+  audio: 0.32   # strongest validated metric (F1 99.53% on ASVspoof 2019 LA)
+  video: 0.30   # strong (F1 98.62% on FF++), but documented cross-dataset gap
+  image: 0.20   # solid (95.18% acc on CIFAKE) but undertrained (1 epoch) + easier task
+  text: 0.18    # currently running in degraded mode (no trained model.pkl yet)
+
+# Decision thresholds
+decision_threshold: 0.5          # fused_score >= this -> "synthetic"
+uncertain_confidence_floor: 0.35  # fused_confidence below this -> verdict forced to "uncertain"
+
+# Cross-modal consistency check (v1 — heuristic, see docs/CROSS_MODAL.md)
+cross_modal_disagreement_threshold: 0.5  # |prob_a - prob_b| above this between two
+                                          # available modalities raises a flag
