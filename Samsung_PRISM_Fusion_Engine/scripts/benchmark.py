@@ -185,6 +185,10 @@ def _aggregate(rows: list[dict], threshold: float) -> dict:
         return {"num_clips": 0}
 
     n = len(rows)
+    # Score-based accuracy: pretends every clip gets a decisive real/synthetic
+    # call by thresholding the raw fused score, ignoring the "uncertain"
+    # verdict entirely. Useful for comparing the raw signal, but does NOT
+    # reflect what the engine actually reports. See verdict-based metrics below.
     fused_correct = sum(
         1 for r in rows if (r["fused_score"] >= threshold) == (r["truth_synthetic"] >= 0.5)
     )
@@ -192,6 +196,20 @@ def _aggregate(rows: list[dict], threshold: float) -> dict:
     fake_rows = [r for r in rows if r["truth_synthetic"] >= 0.5]
     fp = sum(1 for r in real_rows if r["fused_score"] >= threshold)
     fn = sum(1 for r in fake_rows if r["fused_score"] < threshold)
+
+    # Verdict-based metrics: what the engine ACTUALLY reports, treating
+    # "uncertain" as an explicit abstention (routed to human review), not a
+    # wrong answer. This is the honest view of product behaviour.
+    verdict_counts = {"real": 0, "synthetic": 0, "uncertain": 0}
+    for r in rows:
+        verdict_counts[r["verdict"]] = verdict_counts.get(r["verdict"], 0) + 1
+
+    decisive = [r for r in rows if r["verdict"] in ("real", "synthetic")]
+    decisive_correct = sum(
+        1
+        for r in decisive
+        if (r["verdict"] == "synthetic") == (r["truth_synthetic"] >= 0.5)
+    )
 
     per_modality: dict[str, dict] = {}
     for modality in ("image", "audio", "text", "video"):
@@ -216,9 +234,15 @@ def _aggregate(rows: list[dict], threshold: float) -> dict:
         "num_clips": n,
         "num_real": len(real_rows),
         "num_synthetic": len(fake_rows),
-        "fused_accuracy": fused_correct / n,
-        "false_positive_rate": (fp / len(real_rows)) if real_rows else None,
-        "false_negative_rate": (fn / len(fake_rows)) if fake_rows else None,
+        # Score-based (ignores "uncertain") -- raw-signal view.
+        "score_based_accuracy": fused_correct / n,
+        "score_based_false_positive_rate": (fp / len(real_rows)) if real_rows else None,
+        "score_based_false_negative_rate": (fn / len(fake_rows)) if fake_rows else None,
+        # Verdict-based (honest product view) -- "uncertain" = abstention.
+        "verdict_distribution": verdict_counts,
+        "abstention_rate": verdict_counts["uncertain"] / n,
+        "decisive_count": len(decisive),
+        "decisive_accuracy": (decisive_correct / len(decisive)) if decisive else None,
         "flag_rate": mean(r["cross_modal_flags_count"] > 0 for r in rows),
         "per_modality": per_modality,
     }
