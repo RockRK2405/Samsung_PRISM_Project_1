@@ -16,7 +16,11 @@ dependencies = [
 
 [project.optional-dependencies]
 perplexity = [
-    "torch>=2.0",
+    # transformers>=4.30 itself now requires torch>=2.4 at runtime (it
+    # silently disables the PyTorch backend below that, falling back to
+    # tokenizer/config-only mode) — pin the true floor here so `pip install`
+    # catches the mismatch instead of a confusing runtime warning.
+    "torch>=2.4",
     "transformers>=4.30",
 ]
 web = [

@@ -55,6 +55,35 @@ retraining their own model) knows exactly what to update and where.
   ```
   Drop the resulting `artifacts/enhanced/model.pkl` into the repo and
   the adapter will pick it up with zero code changes.
+
+  HC3 itself isn't in the repo — pull it locally first:
+  ```bash
+  pip install datasets
+  python -c "
+  from datasets import load_dataset
+  ds = load_dataset('Hello-SimpleAI/HC3', 'all')['train']
+  ds.to_json('hc3_all.jsonl')
+  "
+  python -m prism_text_detector.train_baseline \
+      --data hc3_all.jsonl --out artifacts/enhanced --target-fpr 0.05
+  ```
+  Also blocked from this remote session for the same reason as the image
+  retraining above (`huggingface.co` egress denied) — run locally.
+
+- **Perplexity signal disabled (separate issue, now fixed at the
+  requirement-pin level)**: `transformers>=4.30` silently drops its
+  PyTorch backend if `torch<2.4` is installed (tokenizer/config-only
+  mode, no crash — just a quiet capability loss). The floor was
+  previously documented as `torch>=2.0` in `pyproject.toml`'s
+  `perplexity` extra and `torch>=2.0` in the fusion engine's
+  `requirements.txt`; both now read `torch>=2.4`. This only fixes the
+  *documented* requirement — you still need to actually upgrade the
+  installed package in your venv:
+  ```bash
+  pip install --upgrade "torch>=2.4" "torchvision>=0.17"
+  ```
+  Safe to do — every module's torch pin here is a floor with no ceiling,
+  so this doesn't break Video/Image/Audio.
 - **Extra dependency not in any requirements.txt**: `app.py`'s file
   upload endpoints import `docx` and `PyPDF2` — irrelevant to the
   fusion engine (we call `PrismEnsemble.analyze()` directly, not
@@ -105,6 +134,25 @@ retraining their own model) knows exactly what to update and where.
   CIFAKE subset — a proof of concept, not a finished training run.
   Expect this to be the weakest-validated of the four checkpoints
   despite the healthy 95.18% reported accuracy.
+- **Retraining path (added)**: `Samsung_PRISM_Image_Detection/scripts/train.py`
+  is a non-notebook port of V1's training loop — same transforms, same
+  2-class head swap, but with `--epochs` and `--subset-size` as real CLI
+  args instead of hardcoded `1` / `20000`. To produce a stronger
+  checkpoint:
+  ```bash
+  # CIFAKE (Kaggle, public dataset — no request form):
+  kaggle datasets download -d birdy654/cifake-real-and-ai-generated-synthetic-images --unzip -p CIFAKE
+  python scripts/train.py --data-root CIFAKE --epochs 8 --subset-size 0 \
+      --out checkpoints/image_detector_v2.pth
+  ```
+  Blocked from running it in this remote session — Kaggle needs your own
+  credentials and this environment's egress policy also does not allow
+  `huggingface.co`/dataset-host traffic (confirmed via
+  `/root/.ccr/__agentproxy/status`, `connect_rejected` / 403 to
+  `huggingface.co:443`). Run it locally, then commit the resulting
+  `.pth` + its sibling `.metrics.json` — `image_adapter.py` needs no code
+  change as long as the new checkpoint is still a 2-class EfficientNet-B0
+  `state_dict()`.
 
 ## Video — `Samsung_PRISM_Video_Detection/`
 
