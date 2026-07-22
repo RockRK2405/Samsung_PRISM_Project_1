@@ -16,12 +16,17 @@ dependencies = [
 
 [project.optional-dependencies]
 perplexity = [
-    # transformers>=4.30 itself now requires torch>=2.4 at runtime (it
-    # silently disables the PyTorch backend below that, falling back to
-    # tokenizer/config-only mode) — pin the true floor here so `pip install`
-    # catches the mismatch instead of a confusing runtime warning.
-    "torch>=2.4",
-    "transformers>=4.30",
+    # torch stays >=2.2,<2.3 to match the Video module's facenet-pytorch
+    # pin (facenet-pytorch==2.6.0 requires torch<2.3) -- they share one venv
+    # in the fusion engine, so torch can't be bumped just for this module.
+    # An unbounded `transformers>=4.30` will happily resolve to a release
+    # that requires torch>=2.4 at runtime (silently disables its PyTorch
+    # backend below that instead of failing install) -- cap it below that
+    # line instead of bumping torch. If perplexity scoring needs a newer
+    # transformers feature later, that's the number to renegotiate, not
+    # this torch ceiling.
+    "torch>=2.2,<2.3",
+    "transformers>=4.30,<4.45",
 ]
 web = [
     "fastapi>=0.100",

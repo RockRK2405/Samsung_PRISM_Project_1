@@ -70,20 +70,36 @@ retraining their own model) knows exactly what to update and where.
   Also blocked from this remote session for the same reason as the image
   retraining above (`huggingface.co` egress denied) — run locally.
 
-- **Perplexity signal disabled (separate issue, now fixed at the
-  requirement-pin level)**: `transformers>=4.30` silently drops its
-  PyTorch backend if `torch<2.4` is installed (tokenizer/config-only
-  mode, no crash — just a quiet capability loss). The floor was
-  previously documented as `torch>=2.0` in `pyproject.toml`'s
-  `perplexity` extra and `torch>=2.0` in the fusion engine's
-  `requirements.txt`; both now read `torch>=2.4`. This only fixes the
-  *documented* requirement — you still need to actually upgrade the
-  installed package in your venv:
+- **Perplexity signal disabled (separate issue) — fixed by capping
+  `transformers`, NOT by bumping torch**: an unbounded
+  `transformers>=4.30` install will happily resolve to a release that
+  requires `torch>=2.4` at runtime, and silently drops its PyTorch
+  backend below that (tokenizer/config-only mode — no crash, just a
+  quiet capability loss, which is what you saw).
+
+  **First attempt at this fix was wrong and briefly broke the Video
+  adapter** — bumping torch to `>=2.4` satisfies transformers, but
+  `facenet-pytorch==2.6.0` (the video module's MTCNN face detector)
+  hard-pins `torch<2.3`. Both adapters share one venv in the fusion
+  engine, so torch can't be bumped for one without breaking the other.
+  Reverted.
+
+  **Correct fix**: keep torch pinned to `>=2.2,<2.3` (satisfies
+  facenet-pytorch) and cap `transformers` to `>=4.30,<4.45` instead —
+  well inside the range that still supports DistilGPT-2 perplexity
+  scoring on older torch. Both `pyproject.toml`'s `perplexity` extra and
+  the fusion engine's `requirements.txt` now read this way. If a future
+  perplexity feature genuinely needs a newer `transformers`, the torch
+  ceiling is the thing to renegotiate then (e.g. dropping
+  `facenet-pytorch` for `mediapipe`, which the video module's
+  `requirements.txt` already lists as an untried alternative face
+  detector — see ADR-002 there).
+
+  To apply in an existing venv:
   ```bash
-  pip install --upgrade "torch>=2.4" "torchvision>=0.17"
+  pip install "torch>=2.2,<2.3" "torchvision>=0.17,<0.18"
+  pip install "transformers>=4.30,<4.45"
   ```
-  Safe to do — every module's torch pin here is a floor with no ceiling,
-  so this doesn't break Video/Image/Audio.
 - **Extra dependency not in any requirements.txt**: `app.py`'s file
   upload endpoints import `docx` and `PyPDF2` — irrelevant to the
   fusion engine (we call `PrismEnsemble.analyze()` directly, not
