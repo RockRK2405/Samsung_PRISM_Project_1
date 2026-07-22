@@ -40,6 +40,18 @@ _FIXED_FRAMES = 251  # matches AudioSpectrogramDataset's default
 _REAL_INDEX = 0
 _FAKE_INDEX = 1
 
+# Empirical calibration cap on the audio model's self-reported confidence.
+# In the first benchmark run (bench.jsonl, 4 clips) audio scored 25%
+# accuracy while reporting mean confidence 0.999 -- pathologically
+# overconfident, and its high default weight (0.32) then let it drag the
+# fused score toward the wrong verdict on every fake. Clipping the
+# confidence at this value stops that dominance without touching the
+# weights or the model itself, and does nothing when the model is
+# already reasonably calibrated (real cases with confidence <=0.85 pass
+# through unchanged). Revisit this once we have >=20 labeled clips and
+# a proper reliability diagram.
+_MAX_REPORTED_CONFIDENCE = 0.85
+
 _DEFAULT_CHECKPOINT = (
     Path(__file__).resolve().parents[4]
     / "Samsung_PRISM_Audio_Detection"
@@ -154,7 +166,8 @@ class AudioAdapter:
 
             prob_fake = float(probs[_FAKE_INDEX].item())
             prob_real = float(probs[_REAL_INDEX].item())
-            confidence = max(prob_fake, prob_real)
+            raw_confidence = max(prob_fake, prob_real)
+            confidence = min(raw_confidence, _MAX_REPORTED_CONFIDENCE)
 
             latency_ms = (time.perf_counter() - t0) * 1000
             return ModalityResult(
@@ -169,6 +182,7 @@ class AudioAdapter:
                     "audio_authenticity_score": round(prob_real, 4),
                     "synthetic_speech_probability": round(prob_fake, 4),
                     "checkpoint": self.checkpoint_path.name,
+                    "raw_confidence": round(raw_confidence, 4),
                 },
             )
         except Exception as exc:  # noqa: BLE001 - must not crash the fusion pipeline
