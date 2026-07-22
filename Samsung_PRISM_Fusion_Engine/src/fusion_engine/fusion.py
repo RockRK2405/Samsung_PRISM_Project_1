@@ -17,6 +17,15 @@ _DEFAULT_WEIGHTS = {"audio": 0.32, "video": 0.30, "image": 0.20, "text": 0.18}
 _DEFAULT_DECISION_THRESHOLD = 0.5
 _DEFAULT_UNCERTAIN_FLOOR = 0.35
 _DEFAULT_DISAGREEMENT_THRESHOLD = 0.5
+# A modality only counts as "voting" (for conflict detection) if it is at
+# least this confident. Below it, the modality is treated as abstaining --
+# its disagreement with another modality is not a genuine cross-modal
+# conflict, just one detector declining to commit. Introduced after the
+# first benchmark showed a 100% flag rate: flags fired on every clip
+# because low-confidence modalities (e.g. text at conf 0.50) were being
+# counted as disagreeing. Gating on confidence makes a raised flag mean
+# something a reviewer should actually act on.
+_DEFAULT_CONFLICT_CONFIDENCE_GATE = 0.6
 
 
 def fuse(
@@ -25,6 +34,7 @@ def fuse(
     decision_threshold: float = _DEFAULT_DECISION_THRESHOLD,
     uncertain_confidence_floor: float = _DEFAULT_UNCERTAIN_FLOOR,
     disagreement_threshold: float = _DEFAULT_DISAGREEMENT_THRESHOLD,
+    conflict_confidence_gate: float = _DEFAULT_CONFLICT_CONFIDENCE_GATE,
 ) -> FusionResult:
     """Combine per-modality results into one verdict.
 
@@ -42,6 +52,9 @@ def fuse(
             reliable evidence to make a call either way.
         disagreement_threshold: minimum |prob difference| between two
             available modalities to raise a cross-modal disagreement flag.
+        conflict_confidence_gate: both modalities in a disagreeing pair
+            must report at least this confidence for the pair to count as
+            a genuine conflict (see :data:`_DEFAULT_CONFLICT_CONFIDENCE_GATE`).
 
     Returns:
         A populated :class:`FusionResult`.
@@ -85,14 +98,27 @@ def fuse(
     for m in available:
         weights_used[m] = round(weights.get(m, 0.0), 4)
 
-    # Disagreement penalty: if two available modalities strongly
-    # disagree, that's real signal the fused number is less trustworthy
-    # than the raw math suggests.
-    flags = _cross_modal_flags(available, disagreement_threshold)
+    # Disagreement penalty: if two *confident* available modalities
+    # strongly disagree, that's real signal the fused number is less
+    # trustworthy than the raw math suggests.
+    flags = _cross_modal_flags(available, disagreement_threshold, conflict_confidence_gate)
     if flags:
         fused_confidence *= 0.85  # modest, not punitive — flags are informational
 
-    if fused_confidence < uncertain_confidence_floor:
+    # A confident cross-modal conflict that straddles the decision line
+    # (one confident modality says synthetic, another confident one says
+    # real) is exactly the case a single averaged scalar should not decide
+    # on its own. Route it to human review rather than emitting a
+    # low-confidence "real"/"synthetic" -- this is the cost-aware QC
+    # behaviour the worklet's dashboard calls for, and it stops the engine
+    # silently passing a fake as real just because two confident detectors
+    # cancelled out. (Weighted averaging alone would call morgan_freeman
+    # "real" at conf 0.73 despite image confidently flagging it synthetic.)
+    straddling_conflict = _confident_conflict_straddles_threshold(
+        available, conflict_confidence_gate, disagreement_threshold, decision_threshold
+    )
+
+    if fused_confidence < uncertain_confidence_floor or straddling_conflict:
         verdict = "uncertain"
     elif fused_score >= decision_threshold:
         verdict = "synthetic"
@@ -113,21 +139,30 @@ def fuse(
 
 
 def _cross_modal_flags(
-    available: dict[str, ModalityResult], disagreement_threshold: float
+    available: dict[str, ModalityResult],
+    disagreement_threshold: float,
+    conflict_confidence_gate: float,
 ) -> list[str]:
-    """Flag pairs of available modalities whose scores strongly disagree.
+    """Flag pairs of *confident* available modalities whose scores disagree.
 
     This is a v1 heuristic stand-in for the worklet's "Cross-Modal
     Validation" step (architecture slide 6: "Audio vs. lip sync · Text
     transcript vs. speech"). A real lip-sync-mismatch or
     transcript-vs-speech check requires frame-level audio/video
     temporal alignment — out of scope for this pass. What this DOES
-    catch: e.g. video module says 90% synthetic while audio module says
-    5% synthetic on the same submission — worth a human's attention
-    even without deeper cross-modal modelling.
+    catch: e.g. video module confidently says 90% synthetic while audio
+    module confidently says 5% synthetic on the same submission — worth a
+    human's attention even without deeper cross-modal modelling.
+
+    Both modalities in a pair must clear ``conflict_confidence_gate`` —
+    a disagreement where one side is merely abstaining (low confidence)
+    is not a genuine conflict and is not flagged. This is what keeps the
+    flag meaningful rather than firing on essentially every submission.
     """
     flags: list[str] = []
     for (mod_a, res_a), (mod_b, res_b) in combinations(available.items(), 2):
+        if res_a.confidence < conflict_confidence_gate or res_b.confidence < conflict_confidence_gate:
+            continue
         gap = abs(res_a.prob_synthetic - res_b.prob_synthetic)
         if gap >= disagreement_threshold:
             flags.append(
@@ -135,6 +170,33 @@ def _cross_modal_flags(
                 f"disagree by {gap:.2f} — recommend manual review"
             )
     return flags
+
+
+def _confident_conflict_straddles_threshold(
+    available: dict[str, ModalityResult],
+    conflict_confidence_gate: float,
+    disagreement_threshold: float,
+    decision_threshold: float,
+) -> bool:
+    """True if two confident modalities land on opposite sides of the line.
+
+    "Opposite sides" means one confident modality's ``prob_synthetic`` is
+    at or above ``decision_threshold`` (it says synthetic) while another
+    confident modality is below it (it says real), and the two differ by
+    at least ``disagreement_threshold``. In that situation a single
+    averaged scalar is not a trustworthy verdict — the submission should
+    go to human review (verdict ``"uncertain"``) instead.
+    """
+    for (mod_a, res_a), (mod_b, res_b) in combinations(available.items(), 2):
+        if res_a.confidence < conflict_confidence_gate or res_b.confidence < conflict_confidence_gate:
+            continue
+        if abs(res_a.prob_synthetic - res_b.prob_synthetic) < disagreement_threshold:
+            continue
+        a_synth = res_a.prob_synthetic >= decision_threshold
+        b_synth = res_b.prob_synthetic >= decision_threshold
+        if a_synth != b_synth:
+            return True
+    return False
 
 
 def _build_explanation(

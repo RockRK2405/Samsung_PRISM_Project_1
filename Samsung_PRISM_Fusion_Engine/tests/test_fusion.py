@@ -98,6 +98,45 @@ def test_no_disagreement_flag_when_scores_agree() -> None:
     assert out.cross_modal_flags == []
 
 
+def test_low_confidence_modality_does_not_trigger_flag() -> None:
+    """A disagreement where one side is abstaining (low conf) is not a conflict."""
+    results = {
+        "image": ModalityResult(modality="image", prob_synthetic=0.9, confidence=0.9),
+        "audio": _unavailable("audio"),
+        "text": ModalityResult(modality="text", prob_synthetic=0.1, confidence=0.4),  # abstaining
+        "video": _unavailable("video"),
+    }
+    out = fuse(results, weights=_WEIGHTS, disagreement_threshold=0.5, conflict_confidence_gate=0.6)
+    # image (0.9) and text (0.1) differ by 0.8, but text is below the gate,
+    # so no genuine conflict is flagged.
+    assert out.cross_modal_flags == []
+
+
+def test_confident_conflict_across_threshold_forces_uncertain() -> None:
+    """Two confident modalities on opposite sides of the line -> route to review."""
+    results = {
+        "image": ModalityResult(modality="image", prob_synthetic=0.85, confidence=0.8),  # says synthetic
+        "audio": ModalityResult(modality="audio", prob_synthetic=0.05, confidence=0.85),  # says real
+        "text": _unavailable("text"),
+        "video": _unavailable("video"),
+    }
+    out = fuse(results, weights=_WEIGHTS, disagreement_threshold=0.5, conflict_confidence_gate=0.6)
+    assert out.verdict == "uncertain"
+    assert len(out.cross_modal_flags) == 1
+
+
+def test_confident_agreement_on_same_side_is_not_forced_uncertain() -> None:
+    """Both confident and on the same side -> normal verdict, no forced uncertain."""
+    results = {
+        "image": ModalityResult(modality="image", prob_synthetic=0.9, confidence=0.9),
+        "audio": ModalityResult(modality="audio", prob_synthetic=0.95, confidence=0.85),
+        "text": _unavailable("text"),
+        "video": _unavailable("video"),
+    }
+    out = fuse(results, weights=_WEIGHTS, conflict_confidence_gate=0.6)
+    assert out.verdict == "synthetic"
+
+
 def test_weights_used_reflects_only_available_modalities() -> None:
     results = {
         "image": ModalityResult(modality="image", prob_synthetic=0.5, confidence=0.5),

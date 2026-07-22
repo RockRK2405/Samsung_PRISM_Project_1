@@ -35,3 +35,13 @@ uncertain_confidence_floor: 0.35  # fused_confidence below this -> verdict force
 # Cross-modal consistency check (v1 — heuristic, see docs/CROSS_MODAL.md)
 cross_modal_disagreement_threshold: 0.5  # |prob_a - prob_b| above this between two
                                           # available modalities raises a flag
+conflict_confidence_gate: 0.6            # both modalities in a disagreeing pair must
+                                          # report at least this confidence for it to
+                                          # count as a genuine conflict. Below it, a
+                                          # modality is "abstaining", not voting. Added
+                                          # after the first benchmark showed a 100% flag
+                                          # rate (flags fired on every clip because
+                                          # low-confidence modalities were counted as
+                                          # disagreeing). A confident conflict that
+                                          # straddles decision_threshold also forces the
+                                          # verdict to "uncertain" (route to review).

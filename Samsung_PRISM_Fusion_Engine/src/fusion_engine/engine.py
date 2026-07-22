@@ -38,6 +38,9 @@ class FusionEngine:
         self.decision_threshold: float = cfg["decision_threshold"]
         self.uncertain_confidence_floor: float = cfg["uncertain_confidence_floor"]
         self.disagreement_threshold: float = cfg["cross_modal_disagreement_threshold"]
+        # Optional (older configs may not have it) — default matches
+        # fusion._DEFAULT_CONFLICT_CONFIDENCE_GATE.
+        self.conflict_confidence_gate: float = cfg.get("conflict_confidence_gate", 0.6)
 
         self.adapters: dict[str, Any] = {}
         self.load_errors: dict[str, str] = {}
@@ -141,4 +144,5 @@ class FusionEngine:
             decision_threshold=self.decision_threshold,
             uncertain_confidence_floor=self.uncertain_confidence_floor,
             disagreement_threshold=self.disagreement_threshold,
+            conflict_confidence_gate=self.conflict_confidence_gate,
         )

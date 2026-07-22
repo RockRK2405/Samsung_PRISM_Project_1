@@ -33,6 +33,34 @@ transcript-alignment check the worklet architecture describes. It
 operates on the two modalities' final scalar scores, with no awareness
 of *time* within either one.
 
+### Refinements after the first benchmark (bench.jsonl, 4 clips)
+
+The initial version flagged **any** pair differing by ≥0.5, which fired
+on 100% of clips — a flag that triggers on everything tells a reviewer
+nothing. Two changes made it meaningful:
+
+1. **Confidence gate (`conflict_confidence_gate`, default 0.6)**: both
+   modalities in a disagreeing pair must be at least this confident for
+   it to count as a conflict. A modality below the gate is treated as
+   *abstaining*, not voting — its disagreement with a confident modality
+   is not a real conflict, just one detector declining to commit.
+
+2. **Abstain on confident straddling conflict**: when two *confident*
+   modalities land on opposite sides of the decision threshold (one says
+   synthetic, one says real), the fused verdict is forced to
+   `"uncertain"` and routed to human review, rather than emitting a
+   low-confidence `"real"`/`"synthetic"` from the averaged scalar. This
+   is the cost-aware QC behaviour the worklet's dashboard calls for: the
+   engine refuses to silently pass a submission that its own confident
+   detectors flatly disagree about. (On the Morgan Freeman deepfake,
+   plain averaging returned `"real"` at confidence 0.73 despite the
+   image detector confidently flagging it synthetic; with this change it
+   returns `"uncertain"` → review.)
+
+Both still operate on scalar scores with no temporal awareness — they
+sharpen the *routing*, not the underlying cross-modal modelling. The
+lip-sync / transcript-alignment work below remains the real v2 goal.
+
 ## Why v1 stops here
 
 Building true lip-sync mismatch detection requires:
