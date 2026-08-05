@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-slate-950 text-slate-200 antialiased;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Reusable primitives for a research/engineering look (not consumer-flashy). */
+@layer components {
+  .card {
+    @apply rounded-lg border border-slate-800 bg-slate-900/60 p-5;
+  }
+  .card-title {
+    @apply text-xs font-semibold uppercase tracking-wider text-slate-400;
+  }
+  .stat {
+    @apply text-3xl font-semibold text-slate-100;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition hover:bg-slate-800;
+  }
+  .input {
+    @apply rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none;
+  }
+  .th {
+    @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-400;
+  }
+  .td {
+    @apply px-3 py-2 text-sm text-slate-300;
+  }
+  .badge-real {
+    @apply inline-flex rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-medium text-emerald-400;
+  }
+  .badge-synthetic {
+    @apply inline-flex rounded-full bg-rose-500/15 px-2.5 py-0.5 text-xs font-medium text-rose-400;
+  }
+  .badge-uncertain {
+    @apply inline-flex rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-400;
+  }
+}
