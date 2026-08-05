@@ -1,0 +1,32 @@
+# =====================================================================
+# LEAN, CPU-ONLY deps for the Docker image.
+# =====================================================================
+# Contains ONLY the packages the inference path actually imports (verified
+# by grepping src/ for third-party imports) plus the dashboard's web layer.
+#
+# Deliberately EXCLUDES the video module's training-only / notebook deps
+# (mlflow, jupyterlab, ipykernel, mediapipe, captum, seaborn) and unused
+# entries (av, pandas, scipy). Installing the full requirements.txt in
+# Docker pulled CUDA packages + backtracked through ~20 torch versions
+# (facenet needs torch<2.3) and timed out on an 86 MB download. This
+# avoids all of that.
+#
+# torch + torchvision are installed SEPARATELY in the Dockerfile from the
+# PyTorch CPU index (smaller wheels, no CUDA). facenet-pytorch pins
+# torch<2.3, so we use the same 2.2.2 / 0.17.2 pair the native venv uses.
+# =====================================================================
+
+numpy==1.26.4              # <2 for torch 2.2.x compatibility
+pillow>=10.2
+opencv-python-headless>=4.9  # headless: no GUI libs needed in a container
+timm>=1.0                  # backbones (BaselineDetector / DualStream)
+facenet-pytorch>=2.6       # MTCNN face detection (pins torch<2.3)
+matplotlib>=3.8            # per-frame timeline PNG
+grad-cam>=1.5              # pytorch_grad_cam
+rich>=13.7                 # logger
+pyyaml>=6.0
+
+# --- dashboard web layer ---
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9

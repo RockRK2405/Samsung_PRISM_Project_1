@@ -1,9 +1,10 @@
 # =====================================================================
 # Video Detection Dashboard — container image
 # =====================================================================
-# Build context is the REPO ROOT (see docker-compose.yml) so this can read
-# the video module's requirements at build time. The video module CODE +
-# CHECKPOINT are mounted at runtime (they're local-only, not baked in).
+# Build context is the REPO ROOT (see docker-compose.yml). The image bakes
+# in a LEAN, CPU-only dep set (requirements-docker.txt — only what inference
+# imports); the video module CODE + CHECKPOINT are mounted at runtime
+# (they're local-only, not baked in).
 #
 # NOTE: containers run Linux, so there is NO Apple MPS here — the model
 # runs on CPU (config device:null auto-resolves to cpu). Slower than
@@ -21,22 +22,26 @@ RUN npm run build          # -> /fe/dist
 # ---- Stage 2: python backend + model deps ----
 FROM python:3.11-slim
 
-# System libs the model stack needs:
-#   ffmpeg  -> PyAV / video decoding
-#   libgl1, libglib2.0-0, libsm6, libxext6 -> opencv
+# System libs opencv/ffmpeg need at runtime (headless opencv keeps this small).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ffmpeg libgl1 libglib2.0-0 libsm6 libxext6 \
+        ffmpeg libglib2.0-0 libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/Samsung_PRISM_Video_Dashboard
 
-# Install deps in two layers so they cache well.
-# 1) The video module's model stack (torch/torchvision/timm/facenet/etc.)
-COPY Samsung_PRISM_Video_Detection/requirements.txt /tmp/video-req.txt
-RUN pip install --no-cache-dir -r /tmp/video-req.txt
-# 2) The dashboard's own web deps
-COPY Samsung_PRISM_Video_Dashboard/requirements.txt /tmp/dash-req.txt
-RUN pip install --no-cache-dir -r /tmp/dash-req.txt
+# Be patient/retry on flaky networks (the big torch wheel otherwise times out).
+ENV PIP_DEFAULT_TIMEOUT=180
+
+# 1) CPU-only torch + torchvision from the PyTorch CPU index. Small wheels,
+#    no CUDA packages, no version backtracking. facenet-pytorch pins
+#    torch<2.3, so use the same 2.2.2 / 0.17.2 pair as the native venv.
+RUN pip install --no-cache-dir --retries 5 \
+        torch==2.2.2 torchvision==0.17.2 \
+        --index-url https://download.pytorch.org/whl/cpu
+
+# 2) Everything else (lean list — only what inference imports + web layer).
+COPY Samsung_PRISM_Video_Dashboard/requirements-docker.txt /tmp/req.txt
+RUN pip install --no-cache-dir --retries 5 -r /tmp/req.txt
 
 # Dashboard source + config
 COPY Samsung_PRISM_Video_Dashboard/backend ./backend
