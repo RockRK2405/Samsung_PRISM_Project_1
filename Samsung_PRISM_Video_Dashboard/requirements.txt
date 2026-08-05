@@ -1,0 +1,19 @@
+# =====================================================================
+# Video Detection Dashboard — backend dependencies
+# =====================================================================
+# Install INTO the same venv that already has the video module's torch /
+# model deps, so model_service can import src.inference directly:
+#     source ../Samsung_PRISM_Fusion_Engine/.venv/bin/activate
+#     pip install -r requirements.txt
+# =====================================================================
+
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9      # file uploads
+pyyaml>=6.0
+opencv-python>=4.9           # video metadata probing
+
+# NOTE: torch / torchvision / timm / facenet-pytorch / grad-cam etc. are
+# NOT listed here on purpose -- they come from the Video Detection module's
+# own requirements.txt (already installed in the shared venv). The
+# dashboard imports that model rather than re-declaring its stack.

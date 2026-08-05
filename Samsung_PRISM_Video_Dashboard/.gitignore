@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Runtime data (not source)
+uploads/*
+!uploads/.gitkeep
+outputs/frames/*
+outputs/explainability/*
+outputs/reports/*
+!outputs/**/.gitkeep
+backend/database/*.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# OS
+.DS_Store

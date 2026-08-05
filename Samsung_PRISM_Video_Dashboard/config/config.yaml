@@ -1,0 +1,54 @@
+# =====================================================================
+# Video Synthetic Media Detection — Research Testing Dashboard
+# Central configuration. Nothing model-related is hardcoded in the app;
+# it all comes from here (requirement 13).
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# Model integration
+# ---------------------------------------------------------------------
+model:
+  # Path to the existing Video Detection module (the sibling repo folder).
+  # model_service.py adds this to sys.path and imports src.inference —
+  # the exact pattern the fusion engine already uses. Relative to the
+  # dashboard root.
+  video_module_path: "../Samsung_PRISM_Video_Detection"
+
+  name: "BaselineDetector (EfficientNet-B0 + mean-pool)"
+  architecture: "EfficientNet-B0 backbone, per-frame classification, mean-pooled"
+  checkpoint: "checkpoints/best.pt"          # relative to video_module_path
+  version: "v1-milestone4-baseline"
+  device: null                                # null -> auto (mps > cuda > cpu)
+  input_size: 224
+  frame_sampling_strategy: "uniform"
+  frames_sampled: 32
+  decision_threshold: 0.5872                  # FF++-val-tuned for FPR <= 5%
+  produce_explanation: true                   # generate GradCAM + timeline
+
+# ---------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------
+storage:
+  database: "backend/database/experiments.db"
+  uploads: "uploads"
+  outputs: "outputs"
+  frames: "outputs/frames"
+  explainability: "outputs/explainability"
+  reports: "outputs/reports"
+
+# ---------------------------------------------------------------------
+# Upload validation
+# ---------------------------------------------------------------------
+uploads:
+  allowed_extensions: [".mp4", ".mov", ".avi", ".mkv", ".webm"]
+  max_size_mb: 500
+
+# ---------------------------------------------------------------------
+# Server
+# ---------------------------------------------------------------------
+server:
+  host: "127.0.0.1"
+  port: 8000
+  cors_origins:
+    - "http://localhost:5173"
+    - "http://127.0.0.1:5173"
