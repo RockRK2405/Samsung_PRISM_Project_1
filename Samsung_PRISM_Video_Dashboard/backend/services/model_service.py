@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,14 @@ from typing import Any
 from backend.config_loader import checkpoint_path, get_config, video_module_root
 
 logger = logging.getLogger(__name__)
+
+# Serialises access to the single shared VideoDetector. The model is one
+# in-memory instance and its GradCAM step temporarily relocates it across
+# devices (MPS <-> CPU); two concurrent predict() calls (e.g. the Compare
+# page firing both videos in parallel) would then race and raise
+# "Input type (MPSFloatType) and weight type (torch.FloatTensor) should be
+# the same". Inference is the bottleneck anyway, so queuing is free.
+_predict_lock = threading.Lock()
 
 # Module-level singletons so we load the checkpoint once, not per request.
 _real_model: "_RealModel | None" = None
@@ -67,11 +76,14 @@ class _RealModel:
         logger.info("Real model loaded from %s", ckpt)
 
     def predict(self, video_path: str | Path) -> dict[str, Any]:
-        t0 = time.perf_counter()
-        result = self._detector.predict(
-            video_path, produce_explanation=self._produce_explanation
-        )
-        processing_time = time.perf_counter() - t0
+        # Hold the lock for the whole inference so a concurrent request
+        # can't relocate the shared model's device mid-forward.
+        with _predict_lock:
+            t0 = time.perf_counter()
+            result = self._detector.predict(
+                video_path, produce_explanation=self._produce_explanation
+            )
+            processing_time = time.perf_counter() - t0
         return _detection_result_to_payload(result, processing_time, mock=False)
 
 

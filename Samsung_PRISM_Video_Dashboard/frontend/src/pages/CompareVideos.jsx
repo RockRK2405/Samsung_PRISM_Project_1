@@ -20,7 +20,11 @@ export default function CompareVideos() {
     setBusy(true);
     setErr(null);
     try {
-      await Promise.all([run(fileA, "Real", setA), run(fileB, "Synthetic", setB)]);
+      // Sequential (not Promise.all): the backend shares one model
+      // instance, so running both at once would queue on the server lock
+      // anyway. Sequential also gives clearer progress.
+      await run(fileA, "Real", setA);
+      await run(fileB, "Synthetic", setB);
     } catch (e) {
       setErr(e.message);
     } finally {
