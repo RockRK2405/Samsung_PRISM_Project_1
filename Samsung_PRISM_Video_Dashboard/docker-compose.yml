@@ -1,0 +1,25 @@
+# =====================================================================
+# One-command run:  docker compose up --build
+# Then open http://localhost:8000  (frontend + API served together)
+# =====================================================================
+services:
+  dashboard:
+    build:
+      # Context is the repo root so the image can read the video module's
+      # requirements.txt at build time.
+      context: ..
+      dockerfile: Samsung_PRISM_Video_Dashboard/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Video module CODE + CHECKPOINT + test_videos, mounted live (RW so
+      # the model can write GradCAM/timeline artefacts). This is why the
+      # local-only best.pt doesn't need to be baked into the image.
+      - ../Samsung_PRISM_Video_Detection:/app/Samsung_PRISM_Video_Detection
+      # Persist uploads, outputs, and the SQLite history across restarts.
+      - ./uploads:/app/Samsung_PRISM_Video_Dashboard/uploads
+      - ./outputs:/app/Samsung_PRISM_Video_Dashboard/outputs
+    environment:
+      # Harmless if unused; keeps torch from trying GPU discovery noise.
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

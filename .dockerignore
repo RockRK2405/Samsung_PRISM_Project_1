@@ -1,0 +1,20 @@
+# Keep the build context lean and the image reproducible.
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/venv/
+**/node_modules/
+Samsung_PRISM_Video_Dashboard/frontend/dist/
+**/.DS_Store
+**/*.db
+
+# Runtime data — never copy into the image (mounted at runtime instead).
+Samsung_PRISM_Video_Dashboard/uploads/*
+Samsung_PRISM_Video_Dashboard/outputs/*
+
+# Other modules the dashboard image doesn't need (only the video module's
+# requirements.txt is used, and its code is mounted at runtime).
+Samsung_PRISM_Audio_Detection/
+Samsung_PRISM_Image_Detection/
+Samsung_PRISM_Text_Detection/
+Samsung_PRISM_Fusion_Engine/

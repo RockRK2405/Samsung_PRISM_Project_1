@@ -29,7 +29,9 @@ model:
 # Storage
 # ---------------------------------------------------------------------
 storage:
-  database: "backend/database/experiments.db"
+  # DB lives under outputs/ so it sits in the mounted volume and history
+  # survives container restarts (outputs/ is bind-mounted in docker-compose).
+  database: "outputs/experiments.db"
   uploads: "uploads"
   outputs: "outputs"
   frames: "outputs/frames"

@@ -56,6 +56,32 @@ npm run dev          # http://localhost:5173
 For a single-command production run, build the frontend once
 (`npm run build`) — FastAPI then serves it at http://127.0.0.1:8000.
 
+## Run with Docker (zero local setup)
+
+If you'd rather not manage the venv + npm each time:
+
+```bash
+cd Samsung_PRISM_Video_Dashboard
+docker compose up --build      # first time builds the image (~10 min)
+```
+Then open **http://localhost:8000** — the backend serves the built
+frontend and the API together on one port.
+
+How it's wired:
+- The **video module code + checkpoint** (`../Samsung_PRISM_Video_Detection`,
+  including the local-only `best.pt`) is **mounted at runtime**, not baked
+  in — so swapping the checkpoint needs no rebuild.
+- `uploads/`, `outputs/`, and the SQLite history persist on the host via
+  bind mounts.
+
+**Important caveat — CPU only in Docker:** containers run Linux, so there
+is **no Apple MPS** inside them. The model runs on CPU (slower — expect
+several seconds per video instead of ~1s). For your fastest demo/benchmark,
+use the native venv above; use Docker for convenient, setup-free testing.
+
+Stop with `docker compose down`. Rebuild only when the dashboard code or
+its dependencies change (model/checkpoint changes are picked up live).
+
 ## Configuration
 
 Everything model- and path-related lives in `config/config.yaml` — the
