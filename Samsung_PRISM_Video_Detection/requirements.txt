@@ -19,6 +19,7 @@
 numpy>=1.26,<3
 pandas>=2.1
 scipy>=1.11
+scikit-learn>=1.3        # scripts/train_general.py -- accuracy/F1/AUC (ADR-006)
 
 # --- Deep learning (PyTorch + MPS backend on Apple Silicon) ---
 torch>=2.2
