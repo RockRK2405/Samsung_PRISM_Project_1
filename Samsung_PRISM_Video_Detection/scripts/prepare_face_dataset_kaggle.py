@@ -62,8 +62,20 @@ def collect_videos(root: Path, patterns: list[str]) -> list[Path]:
 
 
 def collect_ff(root: Path) -> tuple[list[Path], list[Path]]:
-    real = collect_videos(root, ["original_sequences/**/*.mp4", "**/original_sequences/**/*.mp4"])
-    fake = collect_videos(root, ["manipulated_sequences/**/*.mp4", "**/manipulated_sequences/**/*.mp4"])
+    # Canonical FF++ layout (original_sequences / manipulated_sequences) AND
+    # the flat-named layout most Kaggle mirrors ship with (original + one folder
+    # per manipulation method).
+    real_patterns = [
+        "original_sequences/**/*.mp4", "**/original_sequences/**/*.mp4",
+        "**/original/**/*.mp4",
+    ]
+    fake_patterns = [
+        "manipulated_sequences/**/*.mp4", "**/manipulated_sequences/**/*.mp4",
+    ]
+    for method in ("Deepfakes", "Face2Face", "FaceSwap", "NeuralTextures", "FaceShifter", "DeepFakeDetection"):
+        fake_patterns.append(f"**/{method}/**/*.mp4")
+    real = collect_videos(root, real_patterns)
+    fake = collect_videos(root, fake_patterns)
     return real, fake
 
 
