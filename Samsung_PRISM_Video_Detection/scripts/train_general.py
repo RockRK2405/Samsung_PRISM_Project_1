@@ -41,6 +41,7 @@ import torch
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from torch import nn
 from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
 
 from src.datasets.general_image_dataset import GeneralImageDataset
 from src.models.baseline import BaselineDetector
@@ -76,7 +77,8 @@ def main() -> None:
         model.train()
         running_loss = 0.0
         start = time.perf_counter()
-        for images, labels in train_loader:
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{args.epochs} [train]", leave=False)
+        for images, labels in pbar:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
             logits = model(images)
@@ -84,6 +86,7 @@ def main() -> None:
             loss.backward()
             optimizer.step()
             running_loss += loss.item() * images.size(0)
+            pbar.set_postfix(loss=f"{loss.item():.4f}")
         scheduler.step()
         train_loss = running_loss / len(train_ds)
 
@@ -111,7 +114,7 @@ def evaluate(model: BaselineDetector, loader: DataLoader, device: torch.device) 
     all_probs: list[float] = []
     all_preds: list[int] = []
     all_labels: list[int] = []
-    for images, labels in loader:
+    for images, labels in tqdm(loader, desc="  [val]", leave=False):
         images = images.to(device)
         logits = model(images)
         probs = torch.softmax(logits, dim=1)[:, 1].cpu().numpy()
