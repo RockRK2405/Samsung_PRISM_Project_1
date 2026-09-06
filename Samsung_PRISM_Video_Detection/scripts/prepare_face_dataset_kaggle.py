@@ -151,10 +151,12 @@ def main() -> None:
     (out_dir / "real").mkdir(parents=True, exist_ok=True)
     (out_dir / "fake").mkdir(parents=True, exist_ok=True)
 
+    # MTCNN via facenet-pytorch silently returns None on MPS (no faces detected
+    # for any frame), so on Apple Silicon we pin MTCNN to CPU. CPU MTCNN is
+    # slow but correct; MPS MTCNN is fast but useless. Training still uses
+    # MPS/CUDA later — this device only controls face detection.
     if torch.cuda.is_available():
         device = "cuda"
-    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        device = "mps"
     else:
         device = "cpu"
     print(f"Device for MTCNN: {device}")
