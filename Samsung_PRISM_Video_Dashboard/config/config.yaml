@@ -25,6 +25,13 @@ model:
   decision_threshold: 0.5872                  # FF++-val-tuned for FPR <= 5%
   produce_explanation: true                   # generate GradCAM + timeline
 
+  # ADR-006 multi-target routing (faces + general AI content). When true
+  # AND a general-path checkpoint exists next to best.pt, the dashboard
+  # uses MultiTargetVideoDetector, which routes each video to the face
+  # model, the general model, or both (max-combines their scores).
+  use_multi_target: true
+  general_checkpoint: "checkpoints/general.pt"
+
 # ---------------------------------------------------------------------
 # Storage
 # ---------------------------------------------------------------------

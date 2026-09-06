@@ -49,7 +49,12 @@ _load_error: str | None = None
 # Real model wrapper
 # =====================================================================
 class _RealModel:
-    """Thin wrapper around the existing VideoDetector."""
+    """Thin wrapper around the video-module detector.
+
+    Uses the ADR-006 :class:`MultiTargetVideoDetector` when
+    ``model.use_multi_target`` is enabled AND both checkpoints exist;
+    otherwise falls back to the face-only :class:`VideoDetector`.
+    """
 
     def __init__(self) -> None:
         module_root = video_module_root()
@@ -58,31 +63,51 @@ class _RealModel:
 
         # Imported lazily so a missing video module degrades to mock mode
         # rather than crashing the whole backend at import time.
-        from src.inference import VideoDetector  # type: ignore
+        from src.inference import MultiTargetVideoDetector, VideoDetector  # type: ignore
 
         cfg = get_config()["model"]
         ckpt = checkpoint_path()
         if not ckpt.is_file():
             raise FileNotFoundError(f"Checkpoint not found: {ckpt}")
 
-        self._detector = VideoDetector(
-            checkpoint_path=ckpt,
-            threshold=float(cfg["decision_threshold"]),
-            frames_per_video=int(cfg["frames_sampled"]),
-            image_size=int(cfg["input_size"]),
-            device=cfg.get("device"),
-        )
+        general_rel = cfg.get("general_checkpoint")
+        general_ckpt = (video_module_root() / general_rel).resolve() if general_rel else None
+        self._multi_target = bool(cfg.get("use_multi_target", False)) and general_ckpt is not None and general_ckpt.is_file()
+
+        if self._multi_target:
+            self._detector = MultiTargetVideoDetector(
+                face_checkpoint=ckpt,
+                general_checkpoint=general_ckpt,
+                device=cfg.get("device"),
+                image_size=int(cfg["input_size"]),
+                frames_per_video=int(cfg["frames_sampled"]),
+            )
+            logger.info("Multi-target detector loaded (face=%s, general=%s)", ckpt.name, general_ckpt.name)
+        else:
+            self._detector = VideoDetector(
+                checkpoint_path=ckpt,
+                threshold=float(cfg["decision_threshold"]),
+                frames_per_video=int(cfg["frames_sampled"]),
+                image_size=int(cfg["input_size"]),
+                device=cfg.get("device"),
+            )
+            logger.info("Face-only detector loaded from %s", ckpt)
         self._produce_explanation = bool(cfg.get("produce_explanation", True))
-        logger.info("Real model loaded from %s", ckpt)
 
     def predict(self, video_path: str | Path) -> dict[str, Any]:
         # Hold the lock for the whole inference so a concurrent request
         # can't relocate the shared model's device mid-forward.
         with _predict_lock:
             t0 = time.perf_counter()
-            result = self._detector.predict(
-                video_path, produce_explanation=self._produce_explanation
-            )
+            if self._multi_target:
+                # MultiTargetVideoDetector.predict() does not accept the
+                # produce_explanation flag — GradCAM only makes sense on
+                # the face path, and the router may skip it entirely.
+                result = self._detector.predict(video_path)
+            else:
+                result = self._detector.predict(
+                    video_path, produce_explanation=self._produce_explanation
+                )
             processing_time = time.perf_counter() - t0
         return _detection_result_to_payload(result, processing_time, mock=False)
 
@@ -121,14 +146,17 @@ class _MockModel:
 # =====================================================================
 def _detection_result_to_payload(result: Any, processing_time: float, mock: bool) -> dict[str, Any]:
     """Map a real DetectionResult dataclass to the dashboard's dict schema."""
+    # MultiTargetVideoDetector returns the same DetectionResult but with
+    # per_frame_scores empty and explainability fields absent (only the
+    # face path produces GradCAM; the router may skip it entirely).
     return _scores_to_payload(
         per_frame_scores=list(result.per_frame_scores),
         prob_synthetic=float(result.prob_synthetic),
         threshold=float(result.threshold),
         processing_time=processing_time,
-        explainability_score=result.explainability_score,
-        heatmap_dir=result.heatmap_dir,
-        timeline_path=result.timeline_path,
+        explainability_score=getattr(result, "explainability_score", None),
+        heatmap_dir=getattr(result, "heatmap_dir", None),
+        timeline_path=getattr(result, "timeline_path", None),
         meta=dict(result.meta or {}),
         mock=mock,
         num_frames_used=int(result.num_frames_used),
@@ -244,13 +272,18 @@ def model_status() -> dict[str, Any]:
     cfg = get_config()["model"]
     if _real_model is None and not _mock_active:
         init_model()
+    multi_target_active = bool(_real_model and getattr(_real_model, "_multi_target", False))
+    general_rel = cfg.get("general_checkpoint")
+    general_ckpt = str((video_module_root() / general_rel).resolve()) if general_rel else None
     return {
         "mock": _mock_active,
         "connected": not _mock_active,
         "load_error": _load_error,
-        "name": cfg["name"],
+        "name": ("MultiTargetVideoDetector (face+general, ADR-006)" if multi_target_active else cfg["name"]),
         "architecture": cfg["architecture"],
         "checkpoint": str(checkpoint_path()),
+        "general_checkpoint": general_ckpt if multi_target_active else None,
+        "multi_target": multi_target_active,
         "version": cfg["version"],
         "device": cfg.get("device") or "auto (mps > cuda > cpu)",
         "input_size": cfg["input_size"],
