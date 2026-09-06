@@ -151,7 +151,12 @@ def main() -> None:
     (out_dir / "real").mkdir(parents=True, exist_ok=True)
     (out_dir / "fake").mkdir(parents=True, exist_ok=True)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
     print(f"Device for MTCNN: {device}")
     extractor = FrameExtractor(num_frames=args.frames_per_video, strategy="uniform")
     detector = MTCNNFaceDetector(image_size=224, margin=20, device=device)
