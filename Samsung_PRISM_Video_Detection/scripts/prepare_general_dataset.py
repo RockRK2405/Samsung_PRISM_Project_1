@@ -54,7 +54,12 @@ def find_label_dirs(root: Path, real_name: str | None, fake_name: str | None) ->
     """
     real_dirs: list[Path] = []
     fake_dirs: list[Path] = []
+    scanned = 0
+    print(f"Scanning {root} for label folders (this may take a minute)...", flush=True)
     for d in root.rglob("*"):
+        scanned += 1
+        if scanned % 20000 == 0:
+            print(f"  ...scanned {scanned:,} entries, found real={len(real_dirs)} fake={len(fake_dirs)}", flush=True)
         if not d.is_dir():
             continue
         name = d.name.lower()
