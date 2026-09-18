@@ -66,15 +66,18 @@ _VIDEO_EXTS = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".gif"}
 # as a path component. Matching is done on a normalised token (lowercased,
 # stripped of - _ . spaces), so "Text2Video-Zero" and "text2video_zero"
 # both collapse to "text2videozero".
+# Canonical name -> aliases. Includes the GenVidBench archive/folder
+# abbreviations confirmed from the official label files: ms, vc2, t2vz,
+# hd_vg_130m.
 _REAL_SOURCES: dict[str, set[str]] = {
     "vript": {"vript"},
     "hd-vg-130m": {"hdvg", "hdvg130m", "hdvg130", "hdvideo", "hdvg130mreal"},
 }
 _FAKE_GENERATORS: dict[str, set[str]] = {
     "pika": {"pika"},
-    "videocrafter2": {"videocrafter2", "videocrafterv2", "videocrafter"},
-    "modelscope": {"modelscope", "modelscopet2v"},
-    "text2video-zero": {"text2videozero", "t2vzero", "t2v0"},
+    "videocrafter2": {"videocrafter2", "videocrafterv2", "videocrafter", "vc2"},
+    "modelscope": {"modelscope", "modelscopet2v", "ms"},
+    "text2video-zero": {"text2videozero", "t2vzero", "t2v0", "t2vz"},
     "svd": {"svd", "stablevideodiffusion"},
     "musev": {"musev"},
     "mora": {"mora"},
@@ -118,6 +121,85 @@ def classify(video_path: Path, data_root: Path) -> tuple[int, str, str] | None:
         if tok in _REAL_INDEX:
             return 0, _REAL_INDEX[tok], "real"
     return None
+
+
+def scan_from_labels(
+    data_root: Path,
+    label_files: list[Path],
+    require_exists: bool,
+    strict: bool,
+) -> tuple[list[dict], list[dict]]:
+    """Read GenVidBench's official label files (authoritative).
+
+    Each line is ``<relative/path with spaces>.mp4 <label>`` where label
+    1=fake, 0=real. The generator/source is the 2nd path component
+    (e.g. ``Pair1/ms/xxx.mp4`` -> ``ms`` -> ModelScope). We split on the
+    LAST space because filenames themselves contain spaces.
+
+    With ``require_exists`` (default), rows whose video is not on disk are
+    skipped — so you can extract only some archives and still build a
+    valid manifest over what you have.
+    """
+    real_rows: list[dict] = []
+    fake_rows: list[dict] = []
+    total = 0
+    missing = 0
+    unknown: list[str] = []
+    for lf in label_files:
+        if not lf.is_file():
+            raise SystemExit(f"Label file not found: {lf}")
+        print(f"Reading labels: {lf}", flush=True)
+        with lf.open("r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.rstrip("\n")
+                if not line.strip():
+                    continue
+                try:
+                    rel, lab = line.rsplit(" ", 1)
+                    label = int(lab)
+                except ValueError:
+                    continue
+                total += 1
+                parts = rel.split("/")
+                folder = parts[1] if len(parts) > 1 else parts[0]
+                tok = _norm(folder)
+                if label == 0:
+                    canonical = _REAL_INDEX.get(tok)
+                    kind = "real"
+                else:
+                    canonical = _FAKE_INDEX.get(tok)
+                    kind = "fake"
+                if canonical is None:
+                    unknown.append(folder)
+                    continue
+                abs_path = (data_root / rel).resolve()
+                if require_exists and not abs_path.is_file():
+                    missing += 1
+                    continue
+                row = {
+                    "video_id": Path(rel).stem,
+                    "video_path": str(abs_path),
+                    "label": label,
+                    "generator": canonical if kind == "fake" else "",
+                    "source": canonical if kind == "real" else "",
+                    "dataset": "genvidbench",
+                }
+                (real_rows if kind == "real" else fake_rows).append(row)
+
+    print(f"\nLabel rows: {total:,} | on-disk kept: {len(real_rows)+len(fake_rows):,} "
+          f"(real={len(real_rows):,} fake={len(fake_rows):,}) | missing-on-disk skipped: {missing:,}")
+    if unknown:
+        uc = Counter(unknown)
+        print(f"Unknown generator/source folders skipped: {dict(uc)}")
+        if strict:
+            raise SystemExit(f"--strict: {len(unknown)} rows had unknown generator/source folders.")
+    if require_exists and (real_rows == [] or fake_rows == []):
+        raise SystemExit(
+            "No videos found on disk for one class. Extract the archives under "
+            f"{data_root} (Pair1/, Pair2/), or pass --no-require-exists to build "
+            "a manifest of all label rows regardless of extraction."
+        )
+    return real_rows, fake_rows
 
 
 def scan(data_root: Path, strict: bool) -> tuple[list[dict], list[dict]]:
@@ -238,7 +320,28 @@ def main() -> None:
     test_real = _sz(args.test_real, "test_real", 2000)
     test_fake = _sz(args.test_fake, "test_fake", 2000)
 
-    real_rows, fake_rows = scan(data_root, args.strict)
+    # Prefer the official label files (authoritative). Fall back to
+    # path-scanning only if no label files are given/found.
+    label_files: list[Path] = []
+    if args.labels:
+        label_files = [Path(p) for p in args.labels]
+    else:
+        for cand in (
+            data_root / "Pair1_labels.txt", data_root / "Pair2_labels.txt",
+            data_root / "GenVidBench" / "Pair1_labels.txt",
+            data_root / "GenVidBench" / "Pair2_labels.txt",
+        ):
+            if cand.is_file():
+                label_files.append(cand)
+
+    if label_files:
+        print(f"Using {len(label_files)} official label file(s).")
+        real_rows, fake_rows = scan_from_labels(
+            data_root, label_files, require_exists=not args.no_require_exists, strict=args.strict
+        )
+    else:
+        print("No label files found — falling back to path-scan classification.")
+        real_rows, fake_rows = scan(data_root, args.strict)
     if not real_rows or not fake_rows:
         raise SystemExit(f"Need both classes; got real={len(real_rows)} fake={len(fake_rows)}. Check --data-root.")
 
@@ -308,6 +411,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--test-fake", type=int, default=None)
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--strict", action="store_true", help="Fail if any video can't be classified.")
+    p.add_argument("--labels", nargs="*", default=None,
+                   help="Official GenVidBench label .txt files (Pair1_labels.txt Pair2_labels.txt). "
+                        "If omitted, the script looks for them under --data-root.")
+    p.add_argument("--no-require-exists", action="store_true",
+                   help="Include label rows even if the video file is not on disk yet "
+                        "(useful to preview the manifest before extracting archives).")
     return p.parse_args()
 
 
