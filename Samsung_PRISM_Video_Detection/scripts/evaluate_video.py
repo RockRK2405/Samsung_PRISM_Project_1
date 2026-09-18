@@ -29,7 +29,7 @@ import yaml
 from torch.utils.data import DataLoader
 
 from src.datasets.video_dataset import VideoManifestDataset, load_video_manifest
-from src.models.video_spatial import build_video_spatial_from_config
+from src.models.video_spatial import build_video_model_from_config
 from src.training.video_trainer import _metric_suite
 from src.utils import get_logger, select_device
 
@@ -63,7 +63,7 @@ def main() -> None:
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
     # Prefer the config embedded in the checkpoint (matches trained arch).
     model_cfg = ckpt.get("config", cfg)
-    model = build_video_spatial_from_config(model_cfg).to(device)
+    model = build_video_model_from_config(model_cfg).to(device)
     model.load_state_dict(ckpt["model_state"])
 
     manifest = Path(cfg["dataset"]["manifest_dir"]) / f"{args.split}.csv"

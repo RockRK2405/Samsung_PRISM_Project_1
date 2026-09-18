@@ -36,7 +36,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from src.datasets.video_dataset import VideoManifestDataset, load_video_manifest
-from src.models.video_spatial import build_video_spatial_from_config
+from src.models.video_spatial import build_video_model_from_config
 from src.utils import get_logger, select_device
 
 logger = get_logger(__name__)
@@ -92,7 +92,7 @@ def train(cfg: dict) -> dict:
     train_loader = DataLoader(train_ds, batch_size=tcfg["batch_size"], shuffle=True, num_workers=nw, pin_memory=(device.type == "cuda"), drop_last=True)
     val_loader = DataLoader(val_ds, batch_size=tcfg["batch_size"], shuffle=False, num_workers=nw, pin_memory=(device.type == "cuda"))
 
-    model = build_video_spatial_from_config(cfg).to(device)
+    model = build_video_model_from_config(cfg).to(device)
     criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
     optimizer = torch.optim.AdamW(model.parameters(), lr=tcfg["learning_rate"], weight_decay=tcfg["weight_decay"])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=tcfg["epochs"])

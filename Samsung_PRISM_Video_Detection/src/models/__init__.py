@@ -13,6 +13,7 @@ from src.models.dual_stream import (
 from src.models.temporal import TemporalDetector, build_temporal_from_config
 from src.models.video_spatial import (
     VideoSpatialNet,
+    build_video_model_from_config,
     build_video_spatial_from_config,
 )
 
@@ -25,6 +26,7 @@ __all__ = [
     "build_dual_stream_from_config",
     "build_model_from_config",
     "build_temporal_from_config",
+    "build_video_model_from_config",
     "build_video_spatial_from_config",
     "warm_start_rgb_from_baseline",
 ]

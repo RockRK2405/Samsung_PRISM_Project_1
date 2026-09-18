@@ -39,6 +39,7 @@ facenet-pytorch>=2.6
 
 # --- Model architectures / pretrained weights ---
 timm>=1.0                       # XceptionNet, EfficientNet, ViT backbones
+transformers>=4.40              # VideoMAE / TimeSformer video foundation models (ADR-007 Phase 3)
 
 # --- Configuration / CLI ---
 pyyaml>=6.0

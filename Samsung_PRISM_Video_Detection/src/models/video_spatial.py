@@ -131,6 +131,28 @@ class VideoSpatialNet(nn.Module):
         return self.classifier(pooled)
 
 
+def build_video_model_from_config(cfg: dict):
+    """Unified factory — dispatch on ``model.family`` (ADR-007).
+
+    frame_baseline / frame_temporal -> VideoSpatialNet (timm backbone + pool)
+    videomae / timesformer          -> VideoTransformerNet (HF video foundation)
+
+    Returns an nn.Module exposing forward(clips)->logits and
+    set_backbone_trainable(bool), so the trainer stays model-agnostic.
+    """
+    family = str(cfg.get("model", {}).get("family", "frame_baseline")).lower()
+    if family in {"frame_baseline", "frame_temporal", "spatial"}:
+        return build_video_spatial_from_config(cfg)
+    if family in {"videomae", "timesformer"}:
+        # Imported lazily so the spatial path doesn't require `transformers`.
+        from src.models.video_transformer import build_video_transformer_from_config
+        return build_video_transformer_from_config(cfg)
+    raise ValueError(
+        f"Unknown model.family '{family}' — expected frame_baseline, "
+        "frame_temporal, videomae, or timesformer."
+    )
+
+
 def build_video_spatial_from_config(cfg: dict) -> VideoSpatialNet:
     """Instantiate from the ``model`` + ``video`` sub-trees of video_training.yaml."""
     m = cfg.get("model", {})

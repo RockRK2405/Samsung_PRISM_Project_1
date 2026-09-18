@@ -1,6 +1,8 @@
 # ADR-007 — General AI-Generated Video Detection (GenVidBench)
 
-**Status:** Proposed (Phase 0-1 landed: config + manifest pipeline)
+**Status:** In progress — Phase 0-1 (config + manifests), Phase 2 (spatial
+baseline + trainer + eval) and Phase 3 (VideoMAE / TimeSformer wrappers)
+code landed; awaiting first training run on GenVidBench.
 **Date:** 2026-09
 **Supersedes scope of:** none (additive; face milestones 1-6 and ADR-006 remain)
 
@@ -58,10 +60,18 @@ rotate held-out generators and report seen-vs-unseen performance.
   with columns `video_id, video_path, label, generator, source, dataset,
   split`. Does **not** download the dataset (Part 32).
 
+### Phase 2-3 delivered (code; not yet trained)
+
+- Phase 2: `VideoManifestDataset` + `VideoSpatialNet` (timm backbone +
+  mean/attention/transformer pooling) + heavy-model trainer (AMP, grad
+  accum, staged unfreeze, early stop, full metrics) + `train_video.py` /
+  `evaluate_video.py`.
+- Phase 3: `VideoTransformerNet` wrapping HF VideoMAE / TimeSformer behind
+  the same interface; unified `build_video_model_from_config` dispatches on
+  `model.family` so spatial-vs-foundation is a one-line config ablation.
+
 ### Deferred to later phases (planned, not yet built)
 
-- Phase 2: strong spatial video baseline (ConvNeXt/Xception + attention pool).
-- Phase 3: video foundation model (VideoMAE / TimeSformer), compared head-to-head.
 - Phase 4: face-branch backbone upgrade + temporal face analysis.
 - Phase 5: learned multi-branch fusion.
 - Phase 6: object/region branch + partial-region localization.
