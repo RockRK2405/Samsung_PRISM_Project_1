@@ -34,17 +34,24 @@ dataset:
   test_real: 2000
   test_fake: 2000
 
-  # Cross-source-cross-generator protocol (Part 4 / Part 25). The model
-  # trains on one set of generators and is tested on UNSEEN ones, so it
-  # learns synthetic characteristics rather than a generator fingerprint.
-  #   real sources: vript, hd-vg-130m
-  #   fake pair 1 (text-prompt / VidProM): pika, videocrafter2, modelscope, text2video-zero
-  #   fake pair 2 (image/text / HD-VG):    svd, musev, mora, cogvideo
-  train_generators: ["pika", "videocrafter2", "modelscope", "text2video-zero"]
-  test_generators:  ["svd", "musev", "mora", "cogvideo"]
-  # Real sources routed to each split (kept separate to avoid content leakage).
+  # Cross-generator protocol (Part 4 / Part 25). The model trains on one set
+  # of generators and is tested on UNSEEN ones, so it learns synthetic
+  # characteristics rather than a generator fingerprint.
+  #
+  # ACTIVE: Option B (lean, Pair1 only ~74GB) — cross-generator WITHIN Pair1.
+  #   Train on pika + videocrafter2 + modelscope, test on the held-out
+  #   text2video-zero. Real = vript for both, split video-level-disjointly.
+  #   fake pair 1 (VidProM): pika, videocrafter2, modelscope, text2video-zero
+  train_generators: ["pika", "videocrafter2", "modelscope"]
+  test_generators:  ["text2video-zero"]
   train_real_sources: ["vript"]
-  test_real_sources:  ["hd-vg-130m"]
+  test_real_sources:  ["vript"]          # same source, disjoint videos (Option B)
+  #
+  # SCALE-UP: Option A (full ~194GB, cross-SOURCE too) — swap in later:
+  #   train_generators: [pika, videocrafter2, modelscope, text2video-zero]
+  #   test_generators:  [svd, musev, mora, cogvideo]
+  #   train_real_sources: [vript]
+  #   test_real_sources:  [hd-vg-130m]
 
   seed: 42
 

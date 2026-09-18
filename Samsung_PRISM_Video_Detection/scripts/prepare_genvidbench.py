@@ -273,6 +273,49 @@ def _balanced_sample(rows: list[dict], key: str, cap: int | None, rng: random.Ra
     return out
 
 
+def _partition_reals(
+    real_rows: list[dict],
+    train_src: list[str],
+    test_src: list[str],
+    train_cap: int | None,
+    test_cap: int | None,
+    rng: random.Random,
+) -> tuple[list[dict], list[dict]]:
+    """Split the real pool into DISJOINT train and test real sets.
+
+    Sources listed in only one split go entirely to that split. A source
+    listed in BOTH (e.g. Option B: vript used for train and test) is split
+    video-level-disjointly, proportional to the requested caps so neither
+    split is starved. This guarantees no real video appears in both splits
+    (Part 12 leakage prevention).
+    """
+    train_norm = {_norm(s) for s in train_src}
+    test_norm = {_norm(s) for s in test_src}
+    by_source: dict[str, list[dict]] = defaultdict(list)
+    for r in real_rows:
+        by_source[_norm(r["source"])].append(r)
+
+    train_real: list[dict] = []
+    test_real: list[dict] = []
+    for src, rows in by_source.items():
+        rng.shuffle(rows)
+        in_train, in_test = src in train_norm, src in test_norm
+        if in_train and in_test:
+            # Proportional disjoint split (default 80/20 if caps unknown).
+            if train_cap and test_cap:
+                ratio = train_cap / (train_cap + test_cap)
+            else:
+                ratio = 0.8
+            cut = int(len(rows) * ratio)
+            train_real.extend(rows[:cut])
+            test_real.extend(rows[cut:])
+        elif in_train:
+            train_real.extend(rows)
+        elif in_test:
+            test_real.extend(rows)
+    return train_real, test_real
+
+
 def _select_split(
     real_rows: list[dict],
     fake_rows: list[dict],
@@ -352,29 +395,37 @@ def main() -> None:
     for s, c in sorted(Counter(r["source"] for r in real_rows).items()):
         print(f"  {s:20s} {c:,}")
 
-    # TRAIN: train generators/sources. VAL: held out FROM the train
-    # generators (same generators, disjoint videos) so val tracks training
-    # fit. TEST: the unseen generators/sources (true cross-generator).
-    train_all = _select_split(real_rows, fake_rows, train_src, train_gen,
-                              None, None, rng)
-    rng.shuffle(train_all)
+    # Partition REAL videos into disjoint train/test pools up front. This
+    # handles both the full protocol (train=vript, test=hd-vg — different
+    # sources) and the lean Option B (train=test=vript — same source, split
+    # video-level-disjointly). Either way, no real video crosses splits.
+    train_real_pool, test_real_pool = _partition_reals(
+        real_rows, train_src, test_src,
+        (train_real or 0) + (val_real or 0), test_real, rng,
+    )
 
-    # Carve val off the train pool BEFORE capping, so val videos never
-    # appear in train (video-level disjointness — Part 12).
+    # FAKES are partitioned by generator (train_gen vs test_gen are disjoint
+    # by design — the cross-generator protocol).
+    gen_tr = {_norm(g) for g in train_gen}
+    gen_te = {_norm(g) for g in test_gen}
+    train_fake_pool = [r for r in fake_rows if _norm(r["generator"]) in gen_tr]
+    test_fake_pool = [r for r in fake_rows if _norm(r["generator"]) in gen_te]
+
+    rng.shuffle(train_real_pool); rng.shuffle(train_fake_pool)
+
+    # Carve val off the TRAIN pools BEFORE capping (video-level disjoint).
     val_needed_real = val_real if val_real else 0
     val_needed_fake = val_fake if val_fake else 0
-    train_real_all = [r for r in train_all if r["label"] == 0]
-    train_fake_all = [r for r in train_all if r["label"] == 1]
-    val_rows = train_real_all[:val_needed_real] + train_fake_all[:val_needed_fake]
-    remain_real = train_real_all[val_needed_real:]
-    remain_fake = train_fake_all[val_needed_fake:]
+    val_rows = train_real_pool[:val_needed_real] + train_fake_pool[:val_needed_fake]
+    remain_real = train_real_pool[val_needed_real:]
+    remain_fake = train_fake_pool[val_needed_fake:]
     train_rows = (_balanced_sample(remain_real, "source", train_real, rng)
                   + _balanced_sample(remain_fake, "generator", train_fake, rng))
     rng.shuffle(train_rows)
     rng.shuffle(val_rows)
 
-    test_rows = _select_split(real_rows, fake_rows, test_src, test_gen,
-                              test_real, test_fake, rng)
+    test_rows = (_balanced_sample(test_real_pool, "source", test_real, rng)
+                 + _balanced_sample(test_fake_pool, "generator", test_fake, rng))
     rng.shuffle(test_rows)
 
     manifest_dir.mkdir(parents=True, exist_ok=True)
