@@ -2,363 +2,237 @@
 
 **Worklet 26TS08 — A Cost-Aware Framework for Synthetic Data Detection in Data Acquisition Pipelines**
 
-This repository contains the **Video Detection Module** of the Samsung PRISM
-Worklet 26TS08 project. The larger project builds a multi-modal system that
-verifies whether incoming data (image, text, audio, video) is genuine or
-synthetically generated, and fuses per-modality signals into a single trust
-score. This module is responsible for the **video modality** only.
+The **Video Detection Module** of Samsung PRISM Worklet 26TS08. The larger
+project verifies whether incoming data (image, text, audio, video) is genuine
+or synthetically generated; this module owns the **video modality**.
+
+> **Scope note.** The worklet is titled "cost-aware", but for the *video
+> model itself* the priority is **detection quality and generalization** —
+> heavy models are allowed. Cost-aware routing lives elsewhere in PRISM and
+> is not a constraint on this module's architecture.
 
 ---
 
-## 1. Project Objective
+## 1. What this module is
 
-Given an input video, determine whether it is:
+Not "just a face deepfake detector." The target is a **general synthetic-video
+detector**: given an arbitrary video, decide whether it is genuine,
+AI-generated, AI-edited, or contains synthetic content — **even when there is
+no face or human in frame.**
 
-- **Real** — captured by a physical camera of a real scene, or
-- **Synthetic / Deepfake** — produced or manipulated by a generative model
-  (face-swap, face-reenactment, or talking-face / lip-sync generation).
+Detection scope (target capabilities):
 
-The module must output:
+| Category | Example | Branch |
+|----------|---------|--------|
+| **A. Fully AI-generated video** | text/image-to-video (Sora/Kling/SVD-class), any subject | **General-video (primary)** |
+| **B. AI-generated human** | synthetic full body / profile / distant / occluded | Human branch (planned) |
+| **C. Face deepfake** | face-swap, reenactment, expression manipulation | Face branch (built) |
+| **D. AI-edited real video** | real clip with AI-modified person/object/background | General + fusion |
+| **E. Synthetic object/region** | real video containing an AI-generated car/building | Object branch (planned) |
+| **F. Temporal artifacts** | flicker, unnatural motion, identity drift | Temporal reasoning |
 
-1. A synthetic-probability score in `[0, 1]`.
-2. A confidence value.
-3. An explanation artifact (per-frame scores / attention heatmaps) suitable
-   for the project's downstream QC dashboard and fusion engine.
-
-Success targets, inherited from the worklet specification:
-
-| Metric                          | Target        |
-|---------------------------------|---------------|
-| F1 Score                        | ≥ 0.92        |
-| False Positive Rate             | ≤ 5%          |
-| Explainability Score            | ≥ 85%         |
-| Cross-dataset generalization    | Validated on a held-out dataset |
+The **face branch is one component**, not the whole detector.
 
 ---
 
-## 2. Current Development Stage
+## 2. Current status (2026-09)
 
-> **Stage 0 — Repository Scaffolding.**
->
-> Only the project foundation exists at this point: directory layout,
-> configuration templates, documentation templates, and package skeletons.
->
-> **No ML models, no training code, no preprocessing logic, and no
-> datasets have been implemented or downloaded yet.** All source
-> directories contain only package initializers and placeholder README
-> files that describe their intended purpose.
+Two tracks live in the repo. Status legend: ✅ built+verified · 🟢 code (untrained) · 🟠 partial · ⏳ planned.
 
-The current commit is the reference starting point from which all
-subsequent implementation work will grow.
+### Track 1 — Face deepfake (complete, milestones 1-9)
+Trained EfficientNet-B0 detector on FaceForensics++; full preprocessing,
+training, evaluation, explainability, and fusion-integration API. **Verified
+results below.**
+
+### Track 2 — General AI-video (ADR-007, in progress)
+| Phase | Status | Component |
+|-------|--------|-----------|
+| 0 config | ✅ | `configs/video_training.yaml` |
+| 1 data pipeline | ✅ verified | `scripts/prepare_genvidbench.py` — GenVidBench manifests, cross-generator, zero leakage |
+| 2 spatial baseline | 🟢 | `src/models/video_spatial.py` (ConvNeXt + attention/transformer pool) + trainer + eval |
+| 3 video transformer | 🟢 | `src/models/video_transformer.py` (VideoMAE / TimeSformer) |
+| 4-10 face upgrade, human, object, temporal, fusion, rich explainability | ⏳ | see `docs/VIDEO_MODULE_MASTERPLAN.md` |
+
+> **Honest scope:** the general-video track is **code, not yet trained** — no
+> general-video metric is claimed until it runs on GenVidBench. Full roadmap
+> and resume runbook: [`docs/VIDEO_MODULE_MASTERPLAN.md`](docs/VIDEO_MODULE_MASTERPLAN.md).
 
 ---
 
-## 3. Repository Structure
+## 3. Architecture
+
+**Target multi-branch system:**
 
 ```
-Samsung_PRISM_Video_Detection/
-│
-├── .venv/                       # Local Python virtual environment (git-ignored)
-├── configs/                     # YAML configuration templates
-├── data/
-│   ├── raw/                     # Original video files, untouched
-│   ├── processed/               # Extracted frames / cropped faces
-│   ├── metadata/                # Per-video metadata (fps, codec, duration, labels)
-│   └── cache/                   # Intermediate artefacts safe to delete
-│
-├── datasets/                    # Dataset registration / download manifests
-│
-├── docs/
-│   ├── papers/                  # Literature notes and paper summaries
-│   ├── architecture/            # Architecture decision records (ADRs)
-│   ├── meeting_notes/           # Mentor / team meeting notes
-│   └── experiments/             # Experiment logs
-│
-├── notebooks/                   # Exploratory Jupyter notebooks
-│
-├── outputs/
-│   ├── metrics/                 # Evaluation metrics (JSON / CSV)
-│   ├── visualizations/          # Plots, confusion matrices
-│   ├── predictions/             # Per-sample predictions
-│   └── explainability/          # GradCAM / attention heatmaps
-│
-├── checkpoints/                 # Saved model weights (git-ignored)
-├── logs/                        # Training / evaluation logs (git-ignored)
-├── scripts/                     # CLI entrypoints (train, evaluate, predict, ...)
-│
-├── src/                         # Library code — importable Python package
-│   ├── preprocessing/           # Frame extraction, face detection, cropping
-│   ├── datasets/                # PyTorch Dataset / DataLoader definitions
-│   ├── models/                  # Model architectures
-│   ├── training/                # Training loops, optimizers, schedulers
-│   ├── evaluation/              # Metrics, evaluation pipelines
-│   ├── explainability/          # GradCAM, attention visualization
-│   ├── inference/               # Single-video inference API
-│   ├── utils/                   # Logging, IO, config loading
-│   └── configs/                 # Config dataclasses / schema
-│
-├── tests/                       # Unit & integration tests
-│
-├── README.md
-├── requirements.txt
-├── .gitignore
-└── LICENSE
+ARBITRARY VIDEO → preprocessing → frame/clip sampling
+        ├── GENERAL VIDEO branch   (VideoMAE / TimeSformer / ConvNeXt+temporal)   [PRIMARY]
+        ├── FACE branch            (MTCNN → forensic CNN → temporal aggregation)
+        ├── HUMAN branch           (person detector → region → AIGC classifier)   [planned]
+        └── OBJECT/REGION branch   (YOLO/GDINO → crop → AIGC classifier)          [planned]
+                         ↓ learned FUSION (MLP / transformer) ↓
+              FINAL SCORE + rich explanation (frames / faces / humans / objects / temporal)
+```
+
+**Built today:**
+- **General-video branch** — per-frame timm backbone + swappable temporal head
+  (mean-pool / attention-pool / transformer), OR a pretrained video
+  transformer (VideoMAE 16-frame, TimeSformer 8-frame). One config key
+  (`model.family`) switches between them for head-to-head ablation.
+- **Face branch** — video → 32 uniform frames → MTCNN 224×224 crops →
+  EfficientNet-B0 → mean-pool → binary head, with GradCAM + per-frame timeline
+  explainability and a versioned `DetectionResult` JSON API.
+- **Multi-target router (ADR-006)** — combines the face path with a
+  general-content path (max-score when a face is present, general-only
+  otherwise).
+
+---
+
+## 4. Models used
+
+| Branch | Model(s) | Role | Status |
+|--------|----------|------|--------|
+| General video | ConvNeXt-Tiny / EfficientNet / Swin + temporal pool | spatial baseline | 🟢 |
+| General video | **VideoMAE-base**, **TimeSformer** (HF) | spatio-temporal transformer | 🟢 |
+| Face detect | **MTCNN** (facenet-pytorch) | *locate* faces (not classify) | ✅ |
+| Face forensics | **EfficientNet-B0** + mean-pool | real/fake face | ✅ trained |
+| Face forensics | Transformer temporal head, RGB+FFT dual-stream | experiments | ✅ (negative results kept) |
+| Human / object | ViT / ConvNeXt on detected crops | region AIGC | ⏳ |
+| Fusion | MLP / transformer over branch features | learned combine | ⏳ |
+
+Model selection is **empirical** — validation + cross-generator performance
+decides, not model size (Part §5 of the spec).
+
+---
+
+## 5. Research work & findings
+
+Documented experiments (all reproducible, negatives kept — no cherry-picking):
+
+| Experiment | Finding |
+|-----------|---------|
+| **Face baseline (M4)** | EfficientNet-B0 + mean-pool: FF++ test F1 **0.9862**, FPR **0.03**, AUC **0.9946** (tuned threshold 0.5872). Per-manipulation recall: DeepFakes 100%, Face2Face/FaceSwap 99%, NeuralTextures 94%. |
+| **EXP-001 cross-dataset** | FF++→Celeb-DF v2: AUC **0.7076**, FPR **0.72** — a 29 pp AUC drop. Documents the domain-shift failure of FF++-only training (in the 60-75% band published for such models). |
+| **EXP-002 dual-stream FFT** | Frequency stream did **not** improve FF++ accuracy nor close the Celeb-DF gap (+0.48 pp AUC = noise). Negative result kept. |
+| **EXP-003 explainability** | GradCAM face-localisation 0.31 aggregate; model attends to face for reals (0.84) and boundary artifacts for fakes (0.05-0.25) — a known CNN-deepfake strategy. |
+| **GenVidBench pipeline** | Cross-source-cross-generator protocol implemented and verified: train on seen generators, test on **unseen** ones (measures true generalization, not generator memorization). |
+
+**Key research thesis:** the FF++ model overfits dataset-specific artifacts
+(EXP-001). The general-video track on GenVidBench, with held-out-generator
+evaluation, directly targets that generalization gap — the central research
+contribution of this module.
+
+---
+
+## 6. Gaps (honest)
+
+1. **General-video track untrained** — Phases 2-3 are code; no metric yet.
+2. **Cross-dataset generalization weak** on the face track (Celeb-DF AUC 0.71) — the problem Phases 5+ must fix.
+3. **Missing branches** — AI-human (B), object/region (E), learned fusion, and rich multi-branch explainability are planned, not built.
+4. **Only Option-B data** (GenVidBench Pair1, cross-generator) is in progress; full cross-*source* (Pair2, ~194GB) is a later scale-up.
+5. **Explainability is face-only** (GradCAM); the §14 rich JSON schema (per-branch scores, faces/humans/objects with bboxes) is not implemented.
+6. **No robustness eval yet** (compression / resolution / FPS degradation).
+
+---
+
+## 7. Datasets
+
+| Purpose | Dataset | Status |
+|---------|---------|--------|
+| General AI video | **GenVidBench** (Vript/HD-VG real; pika, vc2, ms, t2vz, cogvideo, mora, musev, svd fakes) | downloading (Pair1) |
+| Face forensics | **FaceForensics++ c23** (DeepFakes, Face2Face, FaceSwap, NeuralTextures) | trained |
+| Cross-dataset test | **Celeb-DF v2**, **DFDC** | present |
+| Object/region pretrain | GenImage / COCO | planned |
+
+GenVidBench facts are read from its **official label files** (authoritative),
+not guessed. Splits are always video-level, deterministic, seeded, with
+generator metadata preserved (no data leakage).
+
+---
+
+## 8. Repository layout
+
+```
+configs/            # video_training.yaml (general track) + model/train/dataset (face track)
+data/               # raw videos, manifests, processed crops (git-ignored)
+docs/
+  architecture/     # ADR-001..007 (design decisions)
+  experiments/      # EXP-001..003 (results)
+  VIDEO_MODULE_MASTERPLAN.md   # full roadmap + resume runbook
+scripts/            # prepare_genvidbench, train_video, evaluate_video (general);
+                    # prepare_dataset, train, evaluate, predict (face)
+src/
+  preprocessing/    # frame extraction, MTCNN face detection
+  datasets/         # VideoManifestDataset (general), FF++ face datasets
+  models/           # video_spatial, video_transformer (general); baseline, temporal, dual_stream (face)
+  training/         # video_trainer (general), trainer (face)
+  evaluation/       # metrics
+  explainability/   # GradCAM, timelines
+  inference/        # single-video API, multi-target router
+checkpoints/        # weights (git-ignored)
 ```
 
 ---
 
-## 4. Planned Architecture
+## 9. Environment setup (macOS Apple Silicon / Linux CUDA)
 
-The eventual detection pipeline is designed as a linear sequence of
-independently-testable stages:
-
-```
-Video
-  ↓  Metadata Extraction
-  ↓  Frame Extraction
-  ↓  Frame Sampling
-  ↓  Face Detection
-  ↓  Face Tracking
-  ↓  Face Cropping
-  ↓  Preprocessing (normalization, augmentation)
-  ↓  Feature Extraction (spatial stream + frequency stream)
-  ↓  Temporal Modeling (LSTM / cross-frame attention)
-  ↓  Binary Classification (Real vs Synthetic)
-  ↓  Explainability (per-frame scores, attention heatmaps)
-  ↓  Output (probability, confidence, explanation)
-```
-
-The target reference architecture is a **dual-stream (RGB + frequency-domain)
-ViT-based per-frame feature extractor** with a **temporal aggregation head**
-(LSTM or cross-frame attention). This will be preceded by a lighter CNN
-baseline (XceptionNet / EfficientNet family) so that the pipeline can be
-validated end-to-end before the more expensive model is trained.
-
-None of this is implemented yet — it is documented here as the intended
-target so future modules can be built into their correct slots.
-
----
-
-## 5. Future Milestones
-
-| # | Milestone                                                       | Status  |
-|---|-----------------------------------------------------------------|---------|
-| 0 | Repository scaffolding                                          | Current |
-| 1 | Environment setup & tooling                                     | **Done** — dependency baseline recorded in `docs/architecture/ADR-001-dependency-baseline.md` |
-| 2 | Dataset survey & subset selection (FaceForensics++, Celeb-DF)   | **Done** — FF++ c23 primary set + 32 frames uniform / 224×224 crops locked in (`ADR-002`) |
-| 3 | Frame extraction & face-detection pipeline                      | **Done** — `src/preprocessing/`, `scripts/prepare_dataset.py` |
-| 4 | Per-frame CNN baseline (XceptionNet / EfficientNet)             | **Done** — EfficientNet-B0 + mean-pool (`src/models/baseline.py`) |
-| 5 | Temporal aggregation head                                       | **Done — negative result kept.** Transformer head shipped and config-selectable (`ADR-003`), but on FF++ c23 it under-performed mean-pool at the 5-epoch training budget (F1=0.9748 vs 0.9862, NeuralTextures −5 pp). Baseline `best.pt` remains the production model. |
-| 5B | Cross-dataset generalisation (Celeb-DF v2)                      | **Done** — FF++ baseline evaluated on Celeb-DF 518-video test split. AUC=0.7076, F1=0.8142, FPR=0.72. Landed inside the 60–75% AUC band published for FF++-only-trained models on Celeb-DF (see `docs/experiments/EXP-001-celeb-df-cross-dataset.md`). Confirms the domain-shift failure mode the fusion engine is designed to mitigate. |
-| 6 | Dual-stream (RGB + frequency) upgrade                           | **Done — negative result kept.** FFT stream did not improve accuracy on FF++ (identical to M4 baseline) nor close the Celeb-DF cross-dataset gap (AUC +0.48 pp, noise). See `docs/experiments/EXP-002-dual-stream-fft.md`. Baseline `best.pt` remains the production model. |
-| 7 | Explainability layer (GradCAM / attention maps)                 | **Done** — GradCAM overlays + per-frame timelines + `DetectionResult` JSON API. Face-localisation aggregate 0.31 (below the ≥0.85 target) on a 20-video stratified sample — the model correctly attends to face for reals (0.84) and to boundary artefacts for fakes (0.05–0.25), a well-documented CNN-deepfake-detector strategy. See `docs/experiments/EXP-003-explainability-metric.md`. |
-| 8 | Cross-dataset evaluation & robustness testing                   | **In progress** — Option A: retrain on FF++ + Celeb-DF combined. See prepare_celeb_df_train.py + `--extra-training-root` flag on scripts/train.py |
-| 9 | Integration hooks for the multi-modal fusion engine             | **Done** — public `predict()` + `VideoDetector.load_default()` + versioned `DetectionResult` schema. Full teammate quickstart in [`docs/FUSION_INTEGRATION.md`](docs/FUSION_INTEGRATION.md); JSON schema in [`schemas/video_detection_result.schema.json`](schemas/video_detection_result.schema.json). |
-
----
-
-## 6. Environment Setup (macOS, Apple Silicon)
-
-The module is developed and tested on Apple Silicon (M-series) laptops
-using Python 3.11 and the built-in `venv` module. Conda is intentionally
-not used.
-
-### 6.1 Create the virtual environment
+Python 3.11, `venv` (not conda). PyTorch uses default wheels (MPS on Apple
+Silicon; CUDA build on Linux GPU).
 
 ```bash
 cd Samsung_PRISM_Video_Detection
-python3.11 -m venv .venv
-```
-
-### 6.2 Activate the environment
-
-```bash
-source .venv/bin/activate
-```
-
-To deactivate later:
-
-```bash
-deactivate
-```
-
-### 6.3 Upgrade base tooling
-
-```bash
+python3.11 -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt          # + requirements-dev.txt for tooling
 ```
 
-### 6.4 Install dependencies
-
-Runtime dependencies are in `requirements.txt`; developer tooling
-(pytest, ruff, mypy, pre-commit) is in `requirements-dev.txt`.
-
-```bash
-# Runtime only:
-pip install -r requirements.txt
-
-# Runtime + development tools:
-pip install -r requirements.txt -r requirements-dev.txt
-```
-
-The rationale behind the current dependency choices lives in
-[`docs/architecture/ADR-001-dependency-baseline.md`](docs/architecture/ADR-001-dependency-baseline.md).
-
-### 6.5 Convenience shortcuts (`make`)
-
-A minimal `Makefile` wraps the most common workflows. From the project
-root, once the venv exists:
-
-```bash
-make help          # list available targets
-make install-dev   # create venv + install runtime + dev deps
-make lint          # ruff check
-make format        # ruff fix + format
-make typecheck     # mypy
-make test          # pytest
-```
+Device auto-selects CUDA > MPS > CPU. VideoMAE/TimeSformer have known MPS op
+gaps — run those on CUDA; the spatial baseline runs fine on MPS.
 
 ---
 
-## 7. Current Status
+## 10. Quickstart
 
-- Repository skeleton created.
-- Environment + dependency baseline installed and validated on Apple Silicon.
-- Dataset locked in (FaceForensics++ c23 via Kaggle mirror) — 4 canonical
-  manipulations plus `original/` reals.
-- Preprocessing pipeline implemented: video → 32 uniform frames →
-  224×224 face crops via MTCNN, with a leak-free 80/10/10 split by
-  source-video group id.
-- **Baseline model trained** — EfficientNet-B0 + mean-pool, 5 epochs
-  in ~60 min on MPS. Final held-out test-set metrics (val-tuned
-  threshold = 0.5872 for FPR ≤ 5%):
-
-  | Metric | Test (@0.5) | **Test (tuned)** | Target | Status |
-  |---|:-:|:-:|:-:|:-:|
-  | F1 | 0.9837 | **0.9862** | ≥ 0.92 | ✅ +6.6 pp |
-  | FPR | 0.0600 | **0.0300** | ≤ 0.05 | ✅ 2 pp under |
-  | Precision | 0.9850 | 0.9924 | — | Improved |
-  | Recall | 0.9825 | 0.9800 | — | −0.25 pp trade |
-  | AUC | 0.9946 | 0.9946 | — | Excellent |
-
-  Per-manipulation recall (tuned): Deepfakes 100%, Face2Face 99%,
-  FaceSwap 99%, NeuralTextures **94%** (hardest — GAN-based, matches
-  published literature). Real-video specificity: 97%.
-
-### Running the preprocessing pipeline
-
-From the module root, with the venv active:
-
+### General AI-video track (ADR-007) — the current focus
 ```bash
-# Step 1 — build the train/val/test manifest (fast, seconds)
-python scripts/prepare_dataset.py manifest
+# 1. Build manifests from a downloaded GenVidBench subset (see MASTERPLAN)
+python scripts/prepare_genvidbench.py --config configs/video_training.yaml
 
-# Step 2 — smoke test on 2 videos per split before the long run
-python scripts/prepare_dataset.py faces --limit 2
+# 2. Train the spatial baseline (ConvNeXt + attention pool)
+python scripts/train_video.py --config configs/video_training.yaml --name exp01
 
-# Step 3 — full run (this is the slow one — hours on a laptop)
-python scripts/prepare_dataset.py faces
+# 3. Evaluate with per-generator (seen vs unseen) breakdown
+python scripts/evaluate_video.py --checkpoint checkpoints/best_model.pt
+
+# 4. Swap to a video transformer: set model.family: videomae (or timesformer)
+#    in configs/video_training.yaml, then re-run steps 2-3 and compare.
 ```
+Full step-by-step (download → extract → manifests → train → compare) is in
+[`docs/VIDEO_MODULE_MASTERPLAN.md`](docs/VIDEO_MODULE_MASTERPLAN.md).
 
-Output lands under `data/processed/faces/ff_c23/<split>/<label>/<video>/`.
-Re-running the same command skips videos whose output dir is already
-populated; pass `--overwrite` to force re-extraction.
-
-### Training the baseline model
-
-Once the face crops exist, train the Milestone-4 baseline
-(EfficientNet-B0 + mean-pool video head):
-
+### Face deepfake track (complete)
 ```bash
-# First run downloads the timm ImageNet weights (~20 MB)
-python scripts/train.py                         # uses configs as-is
-python scripts/train.py --epochs 10             # override any field
-python scripts/train.py --device cpu            # force a device
-
-# Evaluate the best checkpoint on the test split
-python scripts/evaluate.py --split test
-
-# Tune the decision threshold on val so FPR ≤ 5% at test
+python scripts/prepare_dataset.py manifest          # build FF++ manifest
+python scripts/prepare_dataset.py faces             # extract face crops
+python scripts/train.py                             # train baseline
 python scripts/evaluate.py --split test --tune-threshold-fpr 0.05
+python scripts/evaluate.py --dataset celeb_df_v2 --split test   # cross-dataset
+python scripts/predict.py --video path/to/clip.mp4  # single-video + GradCAM
 ```
 
-### Cross-dataset evaluation on Celeb-DF v2 (Milestone 5B)
+Artefacts: `checkpoints/*.pt`, `reports/*.json`, `experiments/<name>/`,
+`outputs/explainability/<clip>/`.
 
-Get Celeb-DF v2 onto disk (the official request form is at
-https://github.com/yuezunli/celeb-deepfakeforensics; several Kaggle
-mirrors also exist). You need the folders `Celeb-real/`,
-`YouTube-real/`, `Celeb-synthesis/`, plus the file
-`List_of_testing_videos.txt`.
+---
 
-Extract face crops for the official 518-video test split:
+## 11. Success targets (worklet spec)
 
-```bash
-# Smoke test on 5 videos first (~1 min)
-python scripts/prepare_celeb_df.py --dataset-root ~/Downloads/Celeb-DF-v2 --limit 5
+| Metric | Target | Face track | General track |
+|--------|--------|-----------|---------------|
+| F1 | ≥ 0.92 | ✅ 0.986 (FF++) | ⏳ pending |
+| FPR | ≤ 5% | ✅ 3% (FF++) | ⏳ pending |
+| Cross-dataset generalization | validated | 🟠 0.71 AUC (weak) | ⏳ unseen-generator eval ready |
+| Explainability | ≥ 85% | 🟠 face-localisation 0.31 | ⏳ |
 
-# Full extraction (~30–60 min on CPU MTCNN)
-python scripts/prepare_celeb_df.py --dataset-root ~/Downloads/Celeb-DF-v2
-```
-
-Evaluate the FF++-trained baseline on Celeb-DF (threshold tuned on
-FF++ val — the distribution the model actually knows):
-
-```bash
-python scripts/evaluate.py --dataset celeb_df_v2 --split test \\
-    --checkpoint checkpoints/best.pt --tune-threshold-fpr 0.05
-```
-
-### Mixed-dataset training on FF++ + Celeb-DF (Option A)
-
-To close the cross-dataset gap, retrain on both datasets combined.
-Extraction is the slow step (~3–5 h on M5 CPU MTCNN); training itself
-matches the baseline (~60–90 min).
-
-```bash
-# 1. Extract Celeb-DF training face crops (identity-safe from the test split).
-#    Use --max-per-source 200 for a fast smoke test first.
-python scripts/prepare_celeb_df_train.py \\
-    --dataset-root data/raw/celeb_df_v2/Celeb-DF-v2
-
-# 2. Retrain baseline on FF++ + Celeb-DF combined. Val remains FF++ so
-#    numbers stay comparable to the Milestone-4 baseline.
-python scripts/train.py \\
-    --extra-training-root data/processed/faces/celeb_df_v2
-
-# 3. Evaluate on both test sets
-python scripts/evaluate.py --checkpoint checkpoints/best_mixed.pt --split test \\
-    --tune-threshold-fpr 0.05
-python scripts/evaluate.py --checkpoint checkpoints/best_mixed.pt --split test \\
-    --dataset celeb_df_v2 --tune-threshold-fpr 0.05
-```
-
-Artefacts:
-
-* `checkpoints/best.pt` — best-val-F1 model weights
-* `outputs/metrics/baseline_test.json` — final metrics report
-* `logs/mlruns/` — MLflow run history (browse with `mlflow ui`)
-
-### Single-video prediction + explanation (Milestone 7)
-
-Run the detector on any video and get the JSON payload the fusion
-engine will consume, plus GradCAM overlays and a per-frame timeline:
-
-```bash
-python scripts/predict.py --video path/to/clip.mp4
-```
-
-Artefacts land at:
-
-* `outputs/predictions/<clip>.json` — DetectionResult (score,
-  confidence, per-frame scores, threshold, explainability score, …)
-* `outputs/explainability/<clip>/frame_NN_gradcam.png` — heatmap
-  overlays on each face crop
-* `outputs/explainability/<clip>/timeline.png` — per-frame
-  P(synthetic) timeline
-
-Aggregate the face-localisation explainability score across the whole
-test split (worklet target ≥ 0.85):
-
-```bash
-python scripts/evaluate_explainability.py --split test
-```
+Numbers are only reported once measured. Every architecture change is
+compared against the previous baseline; regressions are documented, not
+hidden (project philosophy §22).
