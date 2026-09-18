@@ -1,0 +1,140 @@
+# =====================================================================
+# General AI-generated VIDEO detection — centralized training config
+# (ADR-007). This is the NEW research track: detecting fully
+# AI-generated / AI-edited video via GenVidBench, distinct from the
+# existing face-deepfake milestones (configs/model.yaml, train.yaml),
+# which are UNCHANGED and still runnable.
+#
+# Priority for this track (per the 26TS08 requirements refresh):
+#   detection quality + generalization > inference cost.
+# Heavy models are allowed; cost-awareness lives elsewhere in PRISM.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# Dataset — GenVidBench general AI-video benchmark
+# ---------------------------------------------------------------------
+dataset:
+  name: "genvidbench"
+
+  # Root of the downloaded GenVidBench videos on the training machine.
+  # The prep script scans this recursively and classifies each video by
+  # generator (folder-name match, case-insensitive) — see
+  # scripts/prepare_genvidbench.py. Override per-machine.
+  data_root: "data/raw/genvidbench"
+
+  # Where the generated manifests land.
+  manifest_dir: "data/manifests"
+
+  # Configurable subset sizes (Part 3). These are PER-CLASS caps applied
+  # AFTER generator-balancing. null = use everything available.
+  train_real: 10000
+  train_fake: 10000
+  val_real: 2000
+  val_fake: 2000
+  test_real: 2000
+  test_fake: 2000
+
+  # Cross-source-cross-generator protocol (Part 4 / Part 25). The model
+  # trains on one set of generators and is tested on UNSEEN ones, so it
+  # learns synthetic characteristics rather than a generator fingerprint.
+  #   real sources: vript, hd-vg-130m
+  #   fake pair 1 (text-prompt / VidProM): pika, videocrafter2, modelscope, text2video-zero
+  #   fake pair 2 (image/text / HD-VG):    svd, musev, mora, cogvideo
+  train_generators: ["pika", "videocrafter2", "modelscope", "text2video-zero"]
+  test_generators:  ["svd", "musev", "mora", "cogvideo"]
+  # Real sources routed to each split (kept separate to avoid content leakage).
+  train_real_sources: ["vript"]
+  test_real_sources:  ["hd-vg-130m"]
+
+  seed: 42
+
+# ---------------------------------------------------------------------
+# Video sampling / preprocessing (Part 5)
+# ---------------------------------------------------------------------
+video:
+  num_frames: 16          # supports 8 / 16 / 32 / 64
+  image_size: 224         # larger when the backbone benefits (e.g. 256/384)
+  sampling: "uniform"
+  cache_frames: false     # optional on-disk frame cache
+  cache_embeddings: false
+
+# ---------------------------------------------------------------------
+# Model — spatial backbone + temporal head (Parts 6-9)
+# ---------------------------------------------------------------------
+model:
+  # Family selector, read by the (Phase 2+) trainer:
+  #   "frame_baseline"  -> spatial backbone + pooling  (Phase 2)
+  #   "frame_temporal"  -> spatial backbone + temporal transformer (Phase 2/3)
+  #   "videomae"        -> pretrained VideoMAE video transformer (Phase 3)
+  #   "timesformer"     -> pretrained TimeSformer (Phase 3)
+  family: "frame_baseline"
+
+  backbone: "convnext_tiny.fb_in22k"   # stronger than EfficientNet-B0; MPS-friendly
+  pretrained: true
+  embedding_dim: null                  # null = backbone default
+  dropout: 0.2
+
+  temporal:
+    type: "attention_pool"   # mean_pool | attention_pool | lstm | transformer
+    hidden_dim: 512
+    num_layers: 2
+    num_heads: 8
+
+  # Only used when family is videomae / timesformer.
+  video_transformer:
+    pretrained_id: "MCG-NJU/videomae-base"
+    num_frames: 16
+
+# ---------------------------------------------------------------------
+# Face branch (Parts 10-15) — reuses the existing face pipeline.
+# Kept here so the eventual fusion model reads ONE config.
+# ---------------------------------------------------------------------
+face:
+  enabled: false            # turned on in Phase 4
+  detector: "mtcnn"         # mtcnn | retinaface
+  backbone: "xception"      # face-forensics backbone
+  crop_size: 224
+  cache_crops: false
+
+# ---------------------------------------------------------------------
+# Object / region branch (Parts 17-18) — Phase 6, off for now.
+# ---------------------------------------------------------------------
+object:
+  enabled: false
+  detector: "yolo"
+
+# ---------------------------------------------------------------------
+# Training (Parts 26-27) — heavy-model friendly
+# ---------------------------------------------------------------------
+training:
+  batch_size: 8               # clip-level; raise/lower per GPU memory
+  epochs: 15
+  learning_rate: 0.0001
+  weight_decay: 0.05
+  gradient_accumulation: 4    # effective batch = batch_size * this
+  mixed_precision: true       # AMP on CUDA; auto-disabled on MPS (op gaps)
+  gradient_checkpointing: false
+  early_stopping:
+    enabled: true
+    patience: 4
+    metric: "val_auc"
+  freeze_backbone_epochs: 1   # train head first, then unfreeze (Part 26)
+
+# ---------------------------------------------------------------------
+# Fusion (Part 20) — Phase 5.
+# ---------------------------------------------------------------------
+fusion:
+  model: "mlp"                # mlp | transformer ; learned, not fixed weights
+
+# ---------------------------------------------------------------------
+# Hardware (Part 27)
+# ---------------------------------------------------------------------
+hardware:
+  device: null                # null = auto (cuda > mps > cpu)
+
+# ---------------------------------------------------------------------
+# Experiment tracking (Parts 33-34)
+# ---------------------------------------------------------------------
+experiment:
+  name: "exp_genvidbench_baseline"
+  output_root: "experiments"
