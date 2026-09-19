@@ -16,6 +16,7 @@ reproducibility (Part 33).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import shutil
 import time
@@ -127,7 +128,14 @@ def train(cfg: dict) -> dict:
         optimizer.zero_grad()
         for step, (clips, labels) in enumerate(train_loader):
             clips, labels = clips.to(device), labels.to(device)
-            with torch.autocast(device_type=device.type, enabled=use_amp):
+            # torch 2.2 rejects autocast(device_type='mps') even with
+            # enabled=False, so only enter the autocast context on CUDA
+            # (the only device where AMP is used); no-op elsewhere.
+            amp_ctx = (
+                torch.autocast(device_type="cuda", enabled=True)
+                if use_amp else contextlib.nullcontext()
+            )
+            with amp_ctx:
                 logits = model(clips)
                 loss = criterion(logits, labels) / accum
             scaler.scale(loss).backward()
