@@ -28,12 +28,45 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
+import io
+import random as _random
+
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 _IMAGENET_MEAN = [0.485, 0.456, 0.406]
 _IMAGENET_STD = [0.229, 0.224, 0.225]
+
+
+class ForensicDegrade:
+    """Random real-world video degradations for face-forensics robustness
+    (ADR-008 Phase 5, Part 18): JPEG recompression, Gaussian blur, and
+    resolution down/up-scaling. These mimic the compression/quality shifts
+    that make a model trained on one dataset (e.g. FF++ c23) collapse on
+    another (Celeb-DF/DFDC). Applied on the PIL image before ToTensor.
+    Each degradation fires independently with probability ``p``.
+    """
+
+    def __init__(self, p: float = 0.5) -> None:
+        self.p = p
+
+    def __call__(self, img: "Image.Image") -> "Image.Image":
+        if _random.random() < self.p:  # JPEG recompression
+            q = _random.randint(40, 90)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=q)
+            buf.seek(0)
+            img = Image.open(buf).convert("RGB")
+        if _random.random() < self.p:  # resolution degradation
+            w, h = img.size
+            scale = _random.uniform(0.4, 0.9)
+            small = img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.BILINEAR)
+            img = small.resize((w, h), Image.BILINEAR)
+        if _random.random() < self.p * 0.6:  # mild blur
+            from PIL import ImageFilter
+            img = img.filter(ImageFilter.GaussianBlur(radius=_random.uniform(0.3, 1.2)))
+        return img
 
 
 @dataclass(frozen=True)
@@ -67,17 +100,24 @@ class GeneralImageDataset(Dataset):
             (validation/test), only resize + normalise.
     """
 
-    def __init__(self, manifest_csv: Path, image_size: int = 224, train: bool = True) -> None:
+    def __init__(self, manifest_csv: Path, image_size: int = 224, train: bool = True,
+                 forensic_aug: bool = False) -> None:
         self.samples = load_manifest(Path(manifest_csv))
         self.train = train
         if train:
-            self.transform = transforms.Compose([
+            aug = [
                 transforms.Resize((image_size, image_size)),
                 transforms.RandomHorizontalFlip(),
                 transforms.ColorJitter(brightness=0.1, contrast=0.1),
+            ]
+            # Forensic degradations go BEFORE ToTensor (they operate on PIL).
+            if forensic_aug:
+                aug.insert(1, ForensicDegrade(p=0.5))
+            aug += [
                 transforms.ToTensor(),
                 transforms.Normalize(mean=_IMAGENET_MEAN, std=_IMAGENET_STD),
-            ])
+            ]
+            self.transform = transforms.Compose(aug)
         else:
             self.transform = transforms.Compose([
                 transforms.Resize((image_size, image_size)),

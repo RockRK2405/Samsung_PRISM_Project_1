@@ -57,7 +57,7 @@ def main() -> None:
     device = select_device(args.device)
     logger.info("Device: %s", device)
 
-    train_ds = GeneralImageDataset(args.train_manifest, image_size=args.image_size, train=True)
+    train_ds = GeneralImageDataset(args.train_manifest, image_size=args.image_size, train=True, forensic_aug=args.forensic_aug)
     val_ds = GeneralImageDataset(args.val_manifest, image_size=args.image_size, train=False)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
@@ -180,6 +180,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--device", default=None, help="cuda | mps | cpu (default: auto)")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--forensic-aug", action="store_true",
+                        help="Enable JPEG/blur/resolution degradations for cross-dataset robustness (Phase 5).")
     return parser.parse_args()
 
 

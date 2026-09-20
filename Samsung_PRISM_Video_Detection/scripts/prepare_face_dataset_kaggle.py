@@ -186,19 +186,30 @@ def main() -> None:
         all_real.append((tag, r))
         all_fake.append((tag, f))
 
-    seen: set[str] = set()
-    real_rows: list[tuple[Path, int]] = []
-    fake_rows: list[tuple[Path, int]] = []
-    for tag, vids in all_real:
-        real_rows.extend(extract_crops(vids, 0, out_dir / "real", extractor, detector, tag, seen))
-    for tag, vids in all_fake:
-        fake_rows.extend(extract_crops(vids, 1, out_dir / "fake", extractor, detector, tag, seen))
+    # Datasets named in --holdout become a separate CROSS-DATASET test set
+    # (Phase 5): the model never trains on them, so face_test.csv measures
+    # true generalization to an unseen dataset (e.g. DFDC).
+    holdout = {h.lower() for h in (args.holdout or [])}
 
-    print(f"\nExtracted {len(real_rows)} real crops, {len(fake_rows)} fake crops")
-    # Balance to avoid the model shortcutting to the majority class.
+    seen: set[str] = set()
+    real_rows: list[tuple[Path, int]] = []      # train/val pool
+    fake_rows: list[tuple[Path, int]] = []
+    test_rows: list[tuple[Path, int]] = []      # held-out dataset(s)
+    for tag, vids in all_real:
+        crops = extract_crops(vids, 0, out_dir / "real", extractor, detector, tag, seen)
+        (test_rows if tag in holdout else real_rows).extend(crops)
+    for tag, vids in all_fake:
+        crops = extract_crops(vids, 1, out_dir / "fake", extractor, detector, tag, seen)
+        (test_rows if tag in holdout else fake_rows).extend(crops)
+
+    print(f"\nTrain/val pool: {len(real_rows)} real crops, {len(fake_rows)} fake crops")
+    if holdout:
+        print(f"Held-out test ({sorted(holdout)}): {len(test_rows)} crops")
+
+    # Balance train/val to avoid the model shortcutting to the majority class.
     n = min(len(real_rows), len(fake_rows))
     if len(real_rows) != len(fake_rows):
-        print(f"Balancing to {n} per class")
+        print(f"Balancing train/val to {n} per class")
     random.shuffle(real_rows)
     random.shuffle(fake_rows)
     rows = real_rows[:n] + fake_rows[:n]
@@ -213,6 +224,10 @@ def main() -> None:
     _write_manifest(manifest_dir / "face_val.csv", val_rows)
     print(f"\nWrote {len(train_rows)} train rows -> {manifest_dir / 'face_train.csv'}")
     print(f"Wrote {len(val_rows)} val rows   -> {manifest_dir / 'face_val.csv'}")
+    if test_rows:
+        random.shuffle(test_rows)
+        _write_manifest(manifest_dir / "face_test.csv", test_rows)
+        print(f"Wrote {len(test_rows)} test rows  -> {manifest_dir / 'face_test.csv'} (held-out {sorted(holdout)})")
 
 
 def _write_manifest(path: Path, rows: list[tuple[Path, int]]) -> None:
@@ -233,6 +248,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--frames-per-video", type=int, default=8, help="How many frames to sample from each video.")
     p.add_argument("--videos-per-class", type=int, default=800, help="Cap videos per class per dataset (None = all).")
     p.add_argument("--val-fraction", type=float, default=0.15)
+    p.add_argument("--holdout", nargs="*", default=None,
+                   help="Dataset tag(s) to route into a held-out face_test.csv for "
+                        "cross-dataset eval (ff | celeb | dfdc). E.g. --holdout dfdc.")
     p.add_argument("--seed", type=int, default=42)
     return p.parse_args()
 
