@@ -1,0 +1,33 @@
+{
+  "experiment": "EXP-005",
+  "task": "face-forensics cross-dataset generalization",
+  "date": "2026-09-20",
+  "train_datasets": ["FaceForensics++ c23", "Celeb-DF v2"],
+  "test_dataset_heldout": "DFDC (dfdc-10 mirror)",
+  "forensic_aug": true,
+  "extraction": {"videos_per_class_per_dataset": 600, "frames_per_video": 6,
+                 "train_crops": 12233, "val_crops": 2159, "test_crops": 7158},
+  "in_distribution_val": {
+    "xception": {"accuracy": 0.9680, "f1": 0.9691, "auc": 0.9913},
+    "convnext_tiny": {"accuracy": 0.9597, "f1": 0.9615, "auc": 0.9890}
+  },
+  "cross_dataset_dfdc": {
+    "xception": {
+      "at_0.5": {"threshold": 0.5, "accuracy": 0.5827, "precision": 0.6971,
+                 "recall": 0.2904, "f1": 0.4100, "auc": 0.6407, "pr_auc": 0.6504,
+                 "fpr": 0.1258, "fnr": 0.7096, "n": 7158},
+      "at_tuned": {"threshold": 0.1088, "accuracy": 0.6084, "f1": 0.5808,
+                   "auc": 0.6407, "fpr": 0.3267, "target_fpr": 0.10}
+    },
+    "convnext_tiny": {
+      "at_0.5": {"threshold": 0.5, "accuracy": 0.5870, "precision": 0.7063,
+                 "recall": 0.2960, "f1": 0.4172, "auc": 0.6564, "pr_auc": 0.6605,
+                 "fpr": 0.1228, "fnr": 0.7040, "n": 7158},
+      "at_tuned": {"threshold": 0.1921, "accuracy": 0.6119, "f1": 0.5373,
+                   "auc": 0.6564, "fpr": 0.2280, "target_fpr": 0.10}
+    }
+  },
+  "winner_cross_dataset": "convnext_tiny",
+  "finding": "NEGATIVE — both backbones ~0.99 val AUC but only ~0.64-0.66 AUC on unseen DFDC; recall ~0.29 (misses ~71% of DFDC fakes). Forensic aug kept FPR low (~0.12) but did not transfer recall. Not directly comparable to EXP-001 (different held-out set: DFDC here vs Celeb-DF there).",
+  "note_partial_fields": "at_tuned rows contain only the fields printed to the run log; full suites are in the Kaggle output reports/xception_dfdc.json and reports/convnext_dfdc.json."
+}
