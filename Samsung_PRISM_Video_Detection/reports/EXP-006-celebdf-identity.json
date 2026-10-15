@@ -145,9 +145,20 @@
     "remedy": "official FF++ EULA at github.com/ondyari/FaceForensics"
   },
   "artifacts": {
-    "checkpoint": "checkpoints/face_celebdf_identity.pt (off-git, on Drive)",
-    "eval_json": "eval_test_celeb-df-v2_heldout_identity.json",
-    "splits": "manifests/splits_summary.json"
+    "checkpoint": {
+      "file": "face_celebdf_identity.pt",
+      "size_bytes": 111363931,
+      "size_mb": 111.4,
+      "sha256": "0d59bbdf73114965941a3a80f9ca299cfa6f65d0bfbcd865cd4c60b9e10eb99d",
+      "location": "Google Drive MyDrive/prism_video/checkpoints/",
+      "in_git": false,
+      "backup_status": "SINGLE COPY -- Drive only; *.pt is git-ignored by design",
+      "if_lost": "re-run prep + training (~90 min on a T4); split is seeded (42) so it reproduces"
+    },
+    "eval_raw": "reports/EXP-006-eval-raw.json",
+    "splits_summary": "reports/EXP-006-splits-summary.json",
+    "test_manifest": "reports/EXP-006-test-manifest.csv",
+    "doc": "docs/experiments/EXP-006-celebdf-identity-disjoint.md"
   },
   "deviation_from_spreadsheet": {
     "sheet_role": "External Test",
