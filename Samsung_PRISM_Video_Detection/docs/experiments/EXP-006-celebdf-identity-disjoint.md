@@ -115,6 +115,41 @@ must not be evaluated on it as if unseen.
 
 Metrics JSON: `reports/EXP-006-celebdf-identity.json`.
 
+### 3.0 Validation vs test — the generalization gap is ~0.02
+
+| | Val (seen identities, n=747) | Test (unseen identities, n=1,091) | Δ |
+|---|:-:|:-:|:-:|
+| **ROC-AUC** | **0.9829** | **0.9644** | **−0.019** |
+| Accuracy | 0.9572 | 0.9248 | −0.032 |
+| F1 | 0.8462 | 0.7760 | −0.070 |
+
+**Holding out identities costs almost nothing.** The 0.019 AUC drop is *inside*
+the test set's own ±0.05 confidence interval, so it is not even a resolvable
+degradation — the model's ranking ability barely notices that the faces are
+new people.
+
+Put that beside the cross-dataset result and the contrast is stark:
+
+| Shift | Val AUC | Test AUC | Δ |
+|---|:-:|:-:|:-:|
+| **Unseen identity** (EXP-006, within Celeb-DF v2) | 0.9829 | **0.9644** | **−0.02** |
+| **Unseen dataset** (EXP-005, → DFDC) | ~0.99 | **0.6564** | **−0.33** |
+
+A **16x larger** collapse for a change of corpus than for a change of person.
+This is the quantitative form of §4's claim: the face branch learns
+manipulation artifacts perfectly well and generalizes across *identities*
+nearly for free — what destroys it is a change of **dataset/domain**
+(codec, compression, capture pipeline, synthesis method), not unfamiliar faces.
+
+Caveat on the val figures: the checkpoint was selected on **best val F1**, so
+these are best-epoch values and mildly optimistic by construction. The test
+column is the honest estimate. The F1 column is also not directly comparable
+across val and test, because the two splits have different real/fake ratios —
+**compare the AUC row.**
+
+Source: `reports/EXP-006-train-val-metrics.json` (written by
+`train_general.py` beside the checkpoint).
+
 ### 3.1 The headline is AUC, not F1
 
 F1 is 0.776 despite 0.91 recall because the test set is **real-heavy**:
@@ -176,7 +211,10 @@ harder cross-dataset setting. Taken with those, the picture is:
 
 So the face branch's weakness is specifically a **dataset/domain shift**
 problem, not an inability to learn manipulation artifacts. It learns them
-well; they just do not survive a change of corpus. That refines, rather than
+well; they just do not survive a change of corpus. §3.0 quantifies this
+directly: the val→test drop is **0.019** for unseen identities against
+**0.33** for an unseen dataset — the same model, the same training recipe, a
+16x difference in how far it falls. That refines, rather than
 overturns, the Phase 6 question ("fix or de-scope"): the branch is useful
 in-domain and unreliable out-of-domain.
 

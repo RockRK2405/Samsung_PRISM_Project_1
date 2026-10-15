@@ -158,7 +158,8 @@
     "eval_raw": "reports/EXP-006-eval-raw.json",
     "splits_summary": "reports/EXP-006-splits-summary.json",
     "test_manifest": "reports/EXP-006-test-manifest.csv",
-    "doc": "docs/experiments/EXP-006-celebdf-identity-disjoint.md"
+    "doc": "docs/experiments/EXP-006-celebdf-identity-disjoint.md",
+    "train_val_metrics": "reports/EXP-006-train-val-metrics.json"
   },
   "deviation_from_spreadsheet": {
     "sheet_role": "External Test",
@@ -166,5 +167,33 @@
     "flag": "--role celeb-df-v2=train_pool",
     "reason": "no second dataset obtainable (see second_dataset_blocked); this is why the result is identity-disjoint, not cross-dataset",
     "consequence": "Celeb-DF v2 is spent as a held-out set for this checkpoint. Once FF++ is available, restore it to its held-out role and do NOT evaluate this checkpoint on it as if unseen."
+  },
+  "results_val_seen_identities": {
+    "n_crops": 747,
+    "accuracy": 0.9571619812583668,
+    "f1": 0.8461538461538461,
+    "auc": 0.9828545371637027,
+    "source": "reports/EXP-006-train-val-metrics.json (train_general.py sidecar)",
+    "caveat": "checkpoint selected on best val F1, so these are best-epoch values and mildly optimistic by construction; the test column is the honest estimate"
+  },
+  "generalization_gap": {
+    "val_auc": 0.9829,
+    "test_auc": 0.9644,
+    "delta_auc": -0.019,
+    "reading": "inside the test set's own +/-0.05 CI, so holding out identities is not a resolvable degradation",
+    "contrast": {
+      "unseen_identity_EXP006": {
+        "val": 0.9829,
+        "test": 0.9644,
+        "delta": -0.019
+      },
+      "unseen_dataset_EXP005": {
+        "val": 0.99,
+        "test": 0.6564,
+        "delta": -0.33
+      },
+      "conclusion": "a ~16x larger collapse for a change of corpus than for a change of person; the face branch's failure mode is DATASET/DOMAIN shift, not unfamiliar faces"
+    },
+    "note": "compare the AUC row only -- val and test have different real/fake ratios, so F1 is not comparable across them"
   }
 }
