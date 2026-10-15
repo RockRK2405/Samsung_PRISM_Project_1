@@ -52,6 +52,21 @@ logger = get_logger(__name__)
 
 def main() -> None:
     args = parse_args()
+
+    # A previous run of this script was pointed at checkpoints/best.pt and
+    # silently destroyed the Milestone-4 face baseline that EXP-001 and EXP-002
+    # were evaluated on -- it is unrecoverable. Never clobber weights by
+    # default; the cost of a stray --out is someone else's published result.
+    out_path = Path(args.out)
+    if out_path.exists() and not args.overwrite:
+        raise SystemExit(
+            f"\nREFUSING to overwrite an existing checkpoint:\n  {out_path.resolve()}\n\n"
+            f"Weights are git-ignored, so this would be unrecoverable. Either:\n"
+            f"  - choose a new --out name (preferred; keeps both), or\n"
+            f"  - pass --overwrite if you are certain this file is disposable.\n\n"
+            f"Record whatever you keep in checkpoints/MANIFEST.md with its sha256.\n"
+        )
+
     torch.manual_seed(args.seed)
 
     device = select_device(args.device)
@@ -154,10 +169,23 @@ def _save_checkpoint(model: BaselineDetector, args: argparse.Namespace, out_path
                     "classifier": {"dropout": args.dropout},
                 }
             },
+            # Record what was ACTUALLY trained. This block used to hardcode
+            # "GenImage-family / still images" regardless of input, which
+            # mislabelled every face-crop model trained with this script --
+            # see checkpoints/MANIFEST.md.
             "meta": {
-                "task": "general_ai_content_detection",
-                "dataset": "GenImage-family (see ADR-006)",
-                "note": "Trained on still images, not video -- see ADR-006 honest scope note.",
+                "train_manifest": str(args.train_manifest),
+                "val_manifest": str(args.val_manifest),
+                "backbone": args.backbone,
+                "epochs": args.epochs,
+                "batch_size": args.batch_size,
+                "lr": args.lr,
+                "image_size": args.image_size,
+                "forensic_aug": bool(args.forensic_aug),
+                "seed": args.seed,
+                "saved_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "note": ("Per-image classifier. The data is whatever the manifests "
+                         "point at -- read train_manifest above, do not assume."),
             },
         },
         out_path,
@@ -169,6 +197,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--train-manifest", required=True)
     parser.add_argument("--val-manifest", required=True)
     parser.add_argument("--out", default="checkpoints/general.pt")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="Allow --out to replace an existing checkpoint "
+                             "(refused by default; see checkpoints/MANIFEST.md).")
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=3e-4)
