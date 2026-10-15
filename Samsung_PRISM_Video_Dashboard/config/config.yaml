@@ -14,22 +14,42 @@ model:
   # dashboard root.
   video_module_path: "../Samsung_PRISM_Video_Detection"
 
-  name: "BaselineDetector (EfficientNet-B0 + mean-pool)"
-  architecture: "EfficientNet-B0 backbone, per-frame classification, mean-pooled"
-  checkpoint: "checkpoints/best.pt"          # relative to video_module_path
-  version: "v1-milestone4-baseline"
+  # EXP-006: ConvNeXt-Tiny trained on Celeb-DF v2 face crops with an
+  # IDENTITY-disjoint split. Test ROC-AUC 0.9644 (+/-0.05) on unseen
+  # celebrities; val 0.9829. See docs/experiments/EXP-006-*.md.
+  name: "BaselineDetector (ConvNeXt-Tiny, Celeb-DF identity-disjoint)"
+  architecture: "ConvNeXt-Tiny backbone, per-frame MTCNN face-crop classification, mean-pooled"
+
+  # Was checkpoints/best.pt. That file is NOT the Milestone-4 face model:
+  # it was overwritten on 2026-09-06 by a train_general.py run and is a
+  # GenImage still-image model. See checkpoints/MANIFEST.md.
+  checkpoint: "checkpoints/face_celebdf_identity.pt"
+  version: "EXP-006"
+
   device: null                                # null -> auto (mps > cuda > cpu)
   input_size: 224
   frame_sampling_strategy: "uniform"
-  frames_sampled: 32
-  decision_threshold: 0.5872                  # FF++-val-tuned for FPR <= 5%
+
+  # MTCNN is pinned to CPU (it returns None for every frame on MPS), so each
+  # sampled frame costs a face detection. 16 keeps a single video responsive
+  # on a laptop; raise it if you want finer per-frame timelines.
+  frames_sampled: 16
+
+  # 0.5 is where EXP-006's reported numbers were measured: recall 0.9103,
+  # FPR 0.0727. The previous 0.5872 was tuned on FF++ validation for a model
+  # that no longer exists, and 0.1433 (val-tuned for FPR<=0.05) overshot to
+  # FPR 0.1048 on test — neither transfers to this checkpoint.
+  decision_threshold: 0.5
+
   produce_explanation: true                   # generate GradCAM + timeline
 
-  # ADR-006 multi-target routing (faces + general AI content). When true
-  # AND a general-path checkpoint exists next to best.pt, the dashboard
-  # uses MultiTargetVideoDetector, which routes each video to the face
-  # model, the general model, or both (max-combines their scores).
-  use_multi_target: true
+  # ADR-006 multi-target routing is OFF. It needs a general-path checkpoint
+  # trained for video; the only general.pt on disk is an EfficientNet-B0
+  # GenImage STILL-IMAGE model with no published metrics. EXP-004's real
+  # general model (best_model.pt, AUC 0.9426) is a VideoSpatialNet, which
+  # build_model_from_config cannot construct — see
+  # docs/DETECTION_ENABLEMENT_PLAN.md §7.2 (Phase 0).
+  use_multi_target: false
   general_checkpoint: "checkpoints/general.pt"
 
 # ---------------------------------------------------------------------
@@ -49,6 +69,8 @@ storage:
 # Upload validation
 # ---------------------------------------------------------------------
 uploads:
+  # Video only. Images are rejected here — the model is per-image internally,
+  # but there is no image entry point yet (enablement plan §7.8).
   allowed_extensions: [".mp4", ".mov", ".avi", ".mkv", ".webm"]
   max_size_mb: 500
 
