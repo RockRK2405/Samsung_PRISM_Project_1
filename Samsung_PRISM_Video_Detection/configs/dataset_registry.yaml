@@ -1,0 +1,416 @@
+# =====================================================================
+# Dataset registry — encodes Video_V1_Synthetic_Deepfake_Datasets.xlsx
+# =====================================================================
+# Source: the owner's spreadsheet (3 sheets: Video Datasets, Priority,
+# Evaluation Matrix), transcribed 2026-10-14. One entry per dataset row.
+#
+# SPLIT ROLES (derived from the sheet's "Recommended Evaluation Use"):
+#   train_pool    <- "Train/Test".  Split into train/val INTERNALLY, at
+#                    video level. The sheet has no separate "validate"
+#                    column, so validation is carved out of this pool —
+#                    which is also the correct protocol: val must come
+#                    from the training distribution, while test must not.
+#   external_test <- "External Test" / "Research / Test".  NEVER trained
+#                    on. Each is scored SEPARATELY to give one
+#                    cross-dataset number per dataset.
+#
+# layout.verified: true  -> real_globs/fake_globs confirmed against a real
+#                           mount (paths checked 2026-09-20, see work log §4)
+#                  false -> NOT confirmed. Patterns are a best guess and
+#                           will likely need fixing. Run
+#                           `prepare_from_registry.py --inspect <name>`
+#                           to print the actual tree, then correct them here.
+#
+# Per the project's standing rule (work log §2.3): dataset details are not
+# invented. Anything unverified is marked so, rather than guessed silently.
+#
+# CONTENT-LEVEL CONTAMINATION (a limit of the automated checks):
+# prepare_from_registry.py enforces leakage rules on registry KEYS. It cannot
+# see that one archive physically contains another dataset's videos. Several
+# mirrors repackage multiple datasets together -- the FF++ Kaggle mirror ships
+# Celeb-DF alongside FF++ (see faceforensics++.layout.contamination_warning).
+# So before adding any mirror, LOOK at what is inside it, and delete anything
+# that duplicates an external_test set. A passing leakage check does not mean
+# the archive is clean.
+#
+# acquisition: how you actually GET it. Most of these are gated behind a
+# signed EULA or a request form and CANNOT be downloaded automatically.
+#   kaggle:<slug>  -> `kaggle datasets download -d <slug>` (needs ~/.kaggle)
+#   kaggle_comp:<c>-> competition data; you must accept the rules first
+#   request_form   -> fill a form / sign an EULA, wait for a link
+#   github_script  -> repo ships a download script (usually + a form)
+#   manual         -> no automated path known
+# =====================================================================
+
+defaults:
+  frames_per_video: 8          # face crops sampled per video
+  videos_per_class: 600        # cap per class PER dataset (balances sources)
+  val_fraction: 0.15           # carved out of train_pool, video-disjoint
+  image_size: 224
+  seed: 42
+
+datasets:
+
+  # ---------------- P0 train pool ----------------
+  faceforensics++:
+    display_name: "FaceForensics++"
+    category: "Deepfake / face manipulation"
+    manipulation: "FaceSwap, DeepFakes, Face2Face, NeuralTextures"
+    sheet_use: "Train/Test"
+    split_role: train_pool
+    priority: P0
+    why: "Core baseline with multiple manipulation methods"
+    source: "https://github.com/ondyari/FaceForensics"
+    acquisition: "request_form | kaggle:ahmedelbanby/faceforensicsplusplus-c23-deepfakebench-structure"
+    layout:
+      # DOWNGRADED 2026-10-14 from verified:true. The globs below are correct
+      # ONLY when the root points at the `videos/FaceForensics++/` SUBTREE of
+      # the Kaggle mirror, not at the archive root. At the root they match
+      # nothing, because the archive also ships pre-extracted PNG frames.
+      verified: false
+      real_globs:  ["original_sequences/**/c23/videos/*.mp4", "original_sequences/**/*.mp4"]
+      fake_globs:  ["manipulated_sequences/**/c23/videos/*.mp4", "manipulated_sequences/**/*.mp4"]
+      note: >-
+        1000 real / 5000 fake (5 methods) when rooted at videos/FaceForensics++/.
+      contamination_warning: >-
+        !! The Kaggle mirror ahmedelbanby/faceforensicsplusplus-c23-deepfakebench-structure
+        ALSO CONTAINS CELEB-DF, under frames/Celeb-DF/. Celeb-DF v2 is an
+        external_test set here, so training on this archive as-is puts the same
+        source videos in train AND test. The leakage assertions in
+        prepare_from_registry.py compare registry NAMES, not content, so they
+        will NOT catch this -- they will print "passed" while the test AUC is
+        silently inflated. Before use: `rm -rf <root>/frames` and point the
+        root at `videos/FaceForensics++/`.
+
+  dfdc:
+    display_name: "DFDC — DeepFake Detection Challenge"
+    category: "Deepfake video"
+    manipulation: "Multiple face-synthesis and face-swap methods"
+    sheet_use: "Train/Test"
+    split_role: train_pool
+    priority: P0
+    why: "Large-scale real-world deepfake benchmark"
+    source: "https://www.kaggle.com/c/deepfake-detection-challenge"
+    acquisition: "kaggle_comp:deepfake-detection-challenge | kaggle:pranay22077/dfdc-10"
+    layout:
+      verified: true
+      mode: metadata_json      # label comes from metadata.json, not the path
+      metadata_glob: "**/metadata.json"
+      video_glob: "*.mp4"
+      note: >-
+        Verified on the dfdc-10 mirror: 10 parts, per-part metadata.json with
+        REAL/FAKE. ~2512 real / 17397 fake across all parts.
+      size_warning: >-
+        The dfdc-10 mirror is 96.5 GB TOTAL (measured 2026-10-14) and `--unzip`
+        needs the whole archive on disk before extracting, so it does NOT fit a
+        Colab session (~107 GB total, ~65 GB free after Celeb-DF v2). Download
+        INDIVIDUAL PARTS instead:
+          kaggle datasets files pranay22077/dfdc-10 --page-size 50
+          kaggle datasets download -d pranay22077/dfdc-10 -f <part> -p <dir> --unzip
+        Two parts (~20 GB) give roughly 500 real / 3500 fake videos -- enough
+        for a balanced 500/class run.
+
+  deeperforensics-1.0:
+    display_name: "DeeperForensics-1.0"
+    category: "Deepfake video"
+    manipulation: "Face manipulation + real-world perturbations"
+    sheet_use: "Train/Test + Robustness"
+    split_role: train_pool
+    tags: [robustness]
+    priority: P0
+    why: "Robustness and real-world perturbations"
+    source: "https://github.com/EndlessSora/DeeperForensics-1.0"
+    acquisition: request_form
+    layout:
+      verified: false
+      real_globs: ["**/source_videos/**/*.mp4", "**/real/**/*.mp4"]
+      fake_globs: ["**/manipulated_videos/**/*.mp4", "**/fake/**/*.mp4"]
+
+  fakeavceleb:
+    display_name: "FakeAVCeleb"
+    category: "Audio + video deepfake"
+    manipulation: "Synthetic faces + synthetic speech"
+    sheet_use: "Train/Test"
+    split_role: train_pool
+    tags: [multimodal]
+    priority: P0
+    why: "Audio + video synthetic content"
+    source: "https://github.com/DASH-Lab/FakeAVCeleb"
+    acquisition: request_form
+    layout:
+      verified: false
+      real_globs: ["**/RealVideo-RealAudio/**/*.mp4"]
+      fake_globs: ["**/FakeVideo-*/**/*.mp4", "**/RealVideo-FakeAudio/**/*.mp4"]
+      note: "Video branch only sees the video stream; the audio-fake/video-real class is a label trap — see the guide."
+
+  # ---------------- P0 external test ----------------
+  celeb-df-v2:
+    display_name: "Celeb-DF v2"
+    category: "Deepfake video"
+    manipulation: "High-quality face swapping"
+    sheet_use: "External Test"
+    split_role: external_test
+    priority: P0
+    why: "High-quality unseen deepfakes"
+    source: "https://github.com/yuezunli/celeb-deepfakeforensics"
+    acquisition: "request_form | kaggle:reubensuju/celeb-df-v2"
+    layout:
+      verified: true
+      real_globs: ["Celeb-real/*.mp4", "YouTube-real/*.mp4"]
+      fake_globs: ["Celeb-synthesis/*.mp4"]
+      # Filenames carry the celebrity ids: id0_0000.mp4 (real, id0) and
+      # id0_id16_0000.mp4 (synthesis, source id0 -> target id16). A video-level
+      # split puts the SAME celebrity in train and test, so the model memorises
+      # identity and the AUC inflates toward 0.99. Always pass
+      # --split-key identity when Celeb-DF is the training pool.
+      identity_regex: "id\\d+"
+      note: >-
+        Verified 2026-10-14 on the Kaggle mirror: 9.29 GB, 6529 mp4 files
+        (590 Celeb-real + 300 YouTube-real + 5639 Celeb-synthesis). Downloads
+        and extracts cleanly in Colab. EXP-001 reference (FF++-trained):
+        AUC 0.7076, recall 0.9471, FPR 0.7247.
+
+  wilddeepfake:
+    display_name: "WildDeepfake"
+    category: "In-the-wild deepfake"
+    manipulation: "Real-world deepfake videos collected from the internet"
+    sheet_use: "External Test"
+    split_role: external_test
+    tags: [robustness, in_the_wild]
+    priority: P0
+    why: "In-the-wild generalization"
+    source: "https://github.com/rshaojimmy/WildDeepfake"
+    acquisition: request_form
+    layout:
+      verified: false
+      real_globs: ["**/real_train/**/*", "**/real_test/**/*"]
+      fake_globs: ["**/fake_train/**/*", "**/fake_test/**/*"]
+      note: "Ships as sequences of extracted FACE images, not videos — set mode: image_dirs once confirmed."
+
+  # ---------------- P1 train pool ----------------
+  dfd:
+    display_name: "DeepFakeDetection (DFD)"
+    category: "Deepfake video"
+    manipulation: "Face replacement / synthesis"
+    sheet_use: "Train/Test"
+    split_role: train_pool
+    priority: P1
+    why: "Additional deepfake source"
+    source: "https://ai.google/research/open-source/datasets/deepfake-detection"
+    acquisition: github_script
+    layout:
+      verified: false
+      real_globs: ["**/original_sequences/actors/**/*.mp4"]
+      fake_globs: ["**/manipulated_sequences/DeepFakeDetection/**/*.mp4"]
+      note: "Distributed through the FaceForensics++ download script."
+
+  forgerynet:
+    display_name: "ForgeryNet"
+    category: "Video + image forgery"
+    manipulation: "Face manipulation, splicing, copy-move and other forgeries"
+    sheet_use: "Train/Test"
+    split_role: train_pool
+    priority: P1
+    why: "Broad video/image forgery coverage"
+    source: "https://github.com/yinanhe/ForgeryNet"
+    acquisition: request_form
+    layout:
+      verified: false
+      mode: label_file
+      note: "Ships its own label txt files. Point label_file at them once confirmed."
+
+  kodf:
+    display_name: "KoDF — Korean DeepFake Dataset"
+    category: "Deepfake video"
+    manipulation: "Face synthesis / face swapping"
+    sheet_use: "Train/Test"
+    split_role: train_pool
+    tags: [domain_shift]
+    priority: P1
+    why: "Different language/domain distribution"
+    source: "https://github.com/KakaoBrain/KoDF"
+    acquisition: request_form
+    layout:
+      verified: false
+      real_globs: ["**/real/**/*.mp4", "**/original/**/*.mp4"]
+      fake_globs: ["**/synthesized/**/*.mp4", "**/fake/**/*.mp4"]
+
+  df40:
+    display_name: "DF40"
+    category: "Deepfake / manipulation"
+    manipulation: "40 deepfake generation/manipulation methods"
+    sheet_use: "Train/Test + Generalization"
+    split_role: train_pool
+    tags: [generalization]
+    priority: P1
+    why: "Many manipulation methods / generalization"
+    source: "https://github.com/YZY-stack/DF40"
+    acquisition: request_form
+    layout:
+      verified: false
+      real_globs: ["**/real/**/*"]
+      fake_globs: ["**/fake/**/*"]
+      note: "40 methods. Strong candidate for a LEAVE-ONE-METHOD-OUT protocol — closest thing here to EXP-004's cross-generator design."
+
+  # ---------------- P1 external test ----------------
+  celeb-df:
+    display_name: "Celeb-DF"
+    category: "Deepfake video"
+    manipulation: "High-quality face swapping"
+    sheet_use: "External Test"
+    split_role: external_test
+    priority: P1
+    why: "High-quality face-swap testing"
+    source: "https://github.com/yuezunli/celeb-deepfakeforensics"
+    acquisition: request_form
+    layout:
+      verified: false
+      real_globs: ["Celeb-real/*.mp4", "YouTube-real/*.mp4"]
+      fake_globs: ["Celeb-synthesis/*.mp4"]
+      note: "v1. OVERLAPS Celeb-DF v2 — do not score both and treat them as independent evidence."
+
+  faceshifter:
+    display_name: "FaceShifter"
+    category: "Face manipulation"
+    manipulation: "High-fidelity face swapping"
+    sheet_use: "External Test"
+    split_role: external_test
+    priority: P1
+    why: "High-fidelity face swapping"
+    source: "https://github.com/yuezunli/FaceShifter"
+    acquisition: github_script
+    layout:
+      verified: false
+      fake_globs: ["**/manipulated_sequences/FaceShifter/**/*.mp4"]
+      note: "FAKE-ONLY. Distributed as an FF++ manipulation. Pair with FF++ originals for reals, or AUC is undefined."
+
+  # ---------------- P2 ----------------
+  deepfaketimit:
+    display_name: "DeepFakeTIMIT"
+    category: "Deepfake video"
+    manipulation: "Face-swapped talking-head videos"
+    sheet_use: "External Test"
+    split_role: external_test
+    priority: P2
+    why: "Classic deepfake benchmark"
+    source: "https://www.idiap.ch/dataset/deepfaketimit"
+    acquisition: request_form
+    layout:
+      verified: false
+      fake_globs: ["**/higher_quality/**/*.avi", "**/lower_quality/**/*.avi"]
+      note: "FAKE-ONLY; reals come from VidTIMIT, a separate download."
+
+  uadfv:
+    display_name: "UADFV"
+    category: "Deepfake video"
+    manipulation: "Face swapping"
+    sheet_use: "External Test"
+    split_role: external_test
+    priority: P2
+    why: "Classic face-swap benchmark"
+    source: "https://github.com/ondyari/FaceForensics"
+    acquisition: request_form
+    layout:
+      verified: false
+      real_globs: ["**/real/*.mp4"]
+      fake_globs: ["**/fake/*.mp4"]
+      note: "Tiny (49+49). n too small for a stable AUC — CI roughly +/-0.12."
+
+  dfdc-preview:
+    display_name: "DFDC Preview (DFDC-P)"
+    category: "Deepfake video"
+    manipulation: "Face manipulation"
+    sheet_use: "Train/Test"
+    split_role: train_pool
+    priority: P2
+    why: "Rapid baseline testing"
+    source: "https://ai.meta.com/datasets/dfdc/"
+    acquisition: request_form
+    layout:
+      verified: false
+      mode: metadata_json
+      metadata_glob: "**/dataset.json"
+      video_glob: "*.mp4"
+      note: "SUBSET OF DFDC. Using both risks train/test contamination — pick one."
+
+  faceforensics:
+    display_name: "FaceForensics (original)"
+    category: "Face manipulation"
+    manipulation: "Face2Face / face manipulation videos"
+    sheet_use: "Train/Test"
+    split_role: train_pool
+    priority: P2
+    why: "Earlier face-manipulation benchmark"
+    source: "https://github.com/ondyari/FaceForensics"
+    acquisition: request_form
+    layout:
+      verified: false
+      real_globs: ["**/original/**/*.mp4"]
+      fake_globs: ["**/altered/**/*.mp4", "**/face2face/**/*.mp4"]
+      note: "Superseded by FF++ and its source videos overlap. Prefer FF++."
+
+  deepaction:
+    display_name: "DeepAction"
+    category: "Synthetic / manipulated video"
+    manipulation: "Action and video manipulation scenarios"
+    sheet_use: "Research / Test"
+    split_role: external_test
+    priority: P2
+    why: "Additional synthetic/manipulated scenarios"
+    source: "https://github.com/yjtlab/awesome-deepfake-detection"
+    acquisition: manual
+    layout:
+      verified: false
+      note: "Source is an awesome-list, not a dataset page. Locate the real release before use."
+
+  deepfakeface:
+    display_name: "DeepFakeFace"
+    category: "Deepfake video"
+    manipulation: "Face manipulation"
+    sheet_use: "External Test"
+    split_role: external_test
+    priority: P2
+    source: "https://github.com/yjtlab/awesome-deepfake-detection"
+    acquisition: manual
+    layout:
+      verified: false
+      note: "Source is an awesome-list. Verify the actual release first."
+
+  celeb-df++:
+    display_name: "Celeb-DF++"
+    category: "Deepfake video"
+    manipulation: "High-quality face manipulation"
+    sheet_use: "External Test"
+    split_role: external_test
+    priority: P2
+    source: "https://github.com/yjtlab/awesome-deepfake-detection"
+    acquisition: manual
+    layout:
+      verified: false
+      note: "Likely overlaps Celeb-DF / v2. Check before treating as independent."
+
+  videoforensics-benchmarks:
+    display_name: "VideoForensics / Deepfake Detection Benchmarks"
+    category: "Video forensics"
+    manipulation: "Multiple synthetic/manipulation methods"
+    sheet_use: "External Test"
+    split_role: external_test
+    priority: P2
+    source: "https://github.com/yjtlab/awesome-deepfake-detection"
+    acquisition: manual
+    layout:
+      verified: false
+      note: "A benchmark COLLECTION, not one dataset. Resolve into concrete datasets."
+
+# =====================================================================
+# Evaluation matrix (sheet 3) — which capability each test set probes.
+# Reported alongside per-dataset metrics so a result maps to a claim.
+# =====================================================================
+evaluation_matrix:
+  face_swap:              {datasets: [faceforensics++, celeb-df, celeb-df-v2, faceshifter, dfdc], probes: "Detection"}
+  deepfake_synthesis:     {datasets: [dfdc, dfd, deeperforensics-1.0, df40], probes: "Detection + Generalization"}
+  in_the_wild:            {datasets: [wilddeepfake], probes: "Cross-domain robustness"}
+  audio_video:            {datasets: [fakeavceleb], probes: "Multimodal consistency"}
+  multiple_manipulations: {datasets: [forgerynet, df40], probes: "General manipulation detection"}
+  compression_quality:    {datasets: [deeperforensics-1.0, wilddeepfake], probes: "Robustness"}
+  unseen_dataset:         {datasets: [celeb-df-v2, wilddeepfake, kodf], probes: "Cross-dataset evaluation"}

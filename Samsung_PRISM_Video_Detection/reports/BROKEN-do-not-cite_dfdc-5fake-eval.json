@@ -1,0 +1,30 @@
+{
+  "_WARNING": "BROKEN RUN -- DO NOT CITE. Trained on only 5 fake videos (DFDC download delivered 50 real / 5 fake of ~1000 requested, Kaggle rate-limited at ~80 files). The model predicts 'real' for everything: recall 0.0, FNR 1.0. AUC 0.4173 is chance and reflects broken DATA, not model quality. Superseded by EXP-006 (AUC 0.9644). Kept only as the record of why the class-balance guard was added to prepare_from_registry.py.",
+  "_superseded_by": "reports/EXP-006-celebdf-identity.json",
+  "checkpoint": "/content/drive/MyDrive/prism_video/checkpoints/face_dfdc_convnext.pt",
+  "test_manifest": "/content/drive/MyDrive/prism_video/manifests/test_celeb-df-v2.csv",
+  "at_0.5": {
+    "threshold": 0.5,
+    "accuracy": 0.49966644429619744,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "fpr": 0.0,
+    "fnr": 1.0,
+    "n": 5996,
+    "auc": 0.41731286159323544,
+    "pr_auc": 0.42755845732463915
+  },
+  "at_tuned": {
+    "threshold": 0.11351735740900039,
+    "accuracy": 0.48815877251501,
+    "precision": 0.09411764705882353,
+    "recall": 0.0026666666666666666,
+    "f1": 0.005186385737439222,
+    "fpr": 0.02570093457943925,
+    "fnr": 0.9973333333333333,
+    "n": 5996,
+    "auc": 0.41731286159323544,
+    "pr_auc": 0.42755845732463915
+  }
+}

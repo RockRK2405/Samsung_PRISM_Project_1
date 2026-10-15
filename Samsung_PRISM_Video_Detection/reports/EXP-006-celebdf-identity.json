@@ -1,0 +1,159 @@
+{
+  "experiment": "EXP-006",
+  "date": "2026-10-15",
+  "task": "face-forensics, identity-disjoint within Celeb-DF v2",
+  "protocol": "train+val+test all from Celeb-DF v2; splits disjoint by CELEBRITY IDENTITY",
+  "NOT_cross_dataset": true,
+  "comparability_warning": "NOT comparable to EXP-001 (0.7076) or EXP-005 (0.6564), which held out an entire unseen dataset. Unseen-identity is an easier task.",
+  "tooling_note": "eval_face_crops.py prints a hardcoded '=== CROSS-DATASET ===' header inherited from EXP-005. It is incorrect for this run.",
+  "dataset": {
+    "name": "Celeb-DF v2",
+    "source": "kaggle:reubensuju/celeb-df-v2",
+    "verified": "9.29 GB, 6529 mp4 (590 Celeb-real + 300 YouTube-real + 5639 Celeb-synthesis)"
+  },
+  "model": {
+    "class": "BaselineDetector",
+    "backbone": "convnext_tiny.fb_in22k_ft_in1k",
+    "params_m": 27.82,
+    "forensic_aug": true,
+    "epochs": 8,
+    "batch_size": 64,
+    "lr": 0.0003,
+    "image_size": 224,
+    "device": "cuda (Colab T4)",
+    "seed": 42
+  },
+  "splits": {
+    "split_key": "identity",
+    "identity_regex": "id\\d+",
+    "youtube_real_fallback": "each id-less clip (e.g. 00109.mp4) treated as its own identity",
+    "identities": {
+      "train": 185,
+      "val": 42,
+      "test": 56
+    },
+    "crops": {
+      "train": 4607,
+      "val": 747,
+      "test": 1091
+    },
+    "videos_dropped_spanning_splits": 325,
+    "train_balance": {
+      "videos_real": 436,
+      "videos_fake": 332,
+      "minority_share": 0.4323,
+      "guard": "passed"
+    },
+    "leakage_checks": "passed: identity-disjoint train/val/test",
+    "frames_per_video": 6,
+    "videos_per_class_cap": 700,
+    "extraction": {
+      "videos_sampled_real": 700,
+      "videos_sampled_fake": 700,
+      "crops_extracted": 8395,
+      "videos_skipped_no_face": 0,
+      "accounting": "8395 = 6445 kept (4607+747+1091) + 1950 dropped (325 spanning videos x 6 frames)"
+    },
+    "train_videos": {
+      "real": 436,
+      "fake": 332,
+      "total": 768
+    },
+    "test_videos": {
+      "real": 156,
+      "fake": 26,
+      "total": 182
+    },
+    "identity_key_decomposition": {
+      "note": "'56 test identities' overstates diversity: 42 are single YouTube-real clips",
+      "test_keys_total": 56,
+      "celebrity_identities": 14,
+      "solo_youtube_real_clips": 42,
+      "fakes_come_only_from": "the 14 celebrity identities; id11 and id12 contribute 0 fakes, so 12 effective",
+      "per_identity_fake_counts_range": "0-9",
+      "test_videos_by_source": {
+        "Celeb-real": 114,
+        "YouTube-real": 42,
+        "Celeb-synthesis": 26
+      }
+    }
+  },
+  "results_test_heldout_identities": {
+    "n_crops": 1091,
+    "at_0.5": {
+      "threshold": 0.5,
+      "accuracy": 0.9248395967002749,
+      "precision": 0.6761904761904762,
+      "recall": 0.9102564102564102,
+      "f1": 0.7759562841530054,
+      "auc": 0.9644042232277527,
+      "pr_auc": 0.8284789920500858,
+      "fpr": 0.07272727272727272,
+      "fnr": 0.08974358974358974
+    },
+    "at_tuned": {
+      "threshold": 0.14326847493648504,
+      "tuned_on": "val, target FPR <= 0.05",
+      "accuracy": 0.9028414298808433,
+      "precision": 0.6016260162601627,
+      "recall": 0.9487179487179487,
+      "f1": 0.736318407960199,
+      "auc": 0.9644042232277527,
+      "pr_auc": 0.8284789920500858,
+      "fpr": 0.10481283422459893,
+      "fnr": 0.05128205128205128,
+      "finding": "target 0.05 -> actual 0.1048 on test; ~2x. Val-tuned thresholds do not transfer even across identities."
+    }
+  },
+  "test_composition_derived": {
+    "method": "counted directly from test_celeb-df-v2_heldout_identity.csv (previously back-solved from metrics; the two agree exactly)",
+    "crops_fake": 156,
+    "crops_real": 935,
+    "ratio": "1:6.0",
+    "videos_fake": 26,
+    "videos_real": 156,
+    "crops_per_video": 5.99,
+    "why": "the identity split dropped 325 spanning videos, mostly synthesis clips (two identities each), inverting Celeb-DF's usual fake-heavy balance"
+  },
+  "uncertainty": {
+    "note": "crops from one video are correlated; effective n is the VIDEO count, not the crop count",
+    "auc_ci95_on_videos": 0.05,
+    "auc_ci95_on_crops_naive": 0.021,
+    "recall_ci95_on_videos": [
+      0.74,
+      0.97
+    ],
+    "fpr_ci95_on_videos": [
+      0.041,
+      0.125
+    ],
+    "defensible_claim": "ROC-AUC in the low-to-mid 0.9s; the second decimal is not resolved",
+    "binding_constraint": "26 fake test videos from 12-14 celebrity identities"
+  },
+  "finding": "POSITIVE. The face branch detects manipulations of unseen identities at ROC-AUC 0.9644 (+/-0.05) with 91% recall at 7.3% FPR. Combined with EXP-001/005 (0.66-0.71 cross-dataset), this locates the branch's weakness specifically in DATASET/DOMAIN shift rather than an inability to learn manipulation artifacts.",
+  "limitations": [
+    "not cross-dataset",
+    "26 fake test videos from 12-14 identities -> wide intervals (binding limitation)",
+    "Celeb-DF v2 repurposed from its spreadsheet 'External Test' role; spent for this checkpoint",
+    "val-tuned threshold did not transfer (0.05 target -> 0.1048 actual)",
+    "single backbone, single seed",
+    "crop-level metrics, not video-level aggregated"
+  ],
+  "second_dataset_blocked": {
+    "dfdc": "kaggle:pranay22077/dfdc-10 - 96.5GB vs ~75GB Colab disk; loose mp4s with no per-part archives; Kaggle rate-limits per-file downloads at ~80 (observed twice)",
+    "ffpp": "kaggle:ahmedelbanby/faceforensicsplusplus-c23-deepfakebench-structure - PNG frames not mp4, AND contains Celeb-DF under frames/Celeb-DF/ (silent leakage against this test set)",
+    "remedy": "official FF++ EULA at github.com/ondyari/FaceForensics"
+  },
+  "artifacts": {
+    "checkpoint": "checkpoints/face_celebdf_identity.pt (off-git, on Drive)",
+    "eval_json": "eval_test_celeb-df-v2_heldout_identity.json",
+    "splits": "manifests/splits_summary.json"
+  },
+  "deviation_from_spreadsheet": {
+    "sheet_role": "External Test",
+    "role_used": "train_pool",
+    "flag": "--role celeb-df-v2=train_pool",
+    "reason": "no second dataset obtainable (see second_dataset_blocked); this is why the result is identity-disjoint, not cross-dataset",
+    "consequence": "Celeb-DF v2 is spent as a held-out set for this checkpoint. Once FF++ is available, restore it to its held-out role and do NOT evaluate this checkpoint on it as if unseen."
+  }
+}

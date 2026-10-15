@@ -82,6 +82,9 @@ logs/*
 
 checkpoints/*
 !checkpoints/.gitkeep
+# The weights stay out, but the RECORD of which checkpoint produced which
+# result must be tracked -- see checkpoints/MANIFEST.md.
+!checkpoints/MANIFEST.md
 
 runs/
 wandb/

@@ -1,0 +1,99 @@
+{
+  "registry": "/content/Samsung_PRISM_Project_1/Samsung_PRISM_Video_Detection/configs/dataset_registry.yaml",
+  "seed": 42,
+  "frames_per_video": 6,
+  "videos_per_class": 700,
+  "val_fraction": 0.15,
+  "image_size": 224,
+  "face_crop": true,
+  "train_pool_datasets": [
+    "celeb-df-v2"
+  ],
+  "external_test_datasets": [
+    "celeb-df-v2_heldout_identity"
+  ],
+  "counts": {
+    "train": 4607,
+    "val": 747,
+    "test_celeb-df-v2_heldout_identity": 1091
+  },
+  "train_keys": 185,
+  "val_keys": 42,
+  "test_keys": 56,
+  "split_key": "identity",
+  "test_fraction": 0.2,
+  "videos_dropped_spanning_splits": 325,
+  "leakage_checks": "passed: identity-disjoint train/val/test; no external_test dataset in train",
+  "train_balance": {
+    "videos_real": 436,
+    "videos_fake": 332,
+    "minority_share": 0.4323,
+    "guard": "passed"
+  },
+  "per_dataset": {
+    "celeb-df-v2": {
+      "role": "train_pool",
+      "priority": "P0",
+      "videos_real": 700,
+      "videos_fake": 700,
+      "crops": 8395,
+      "skipped": 0,
+      "sheet_use": "External Test"
+    }
+  },
+  "evaluation_matrix": {
+    "face_swap": {
+      "datasets": [
+        "faceforensics++",
+        "celeb-df",
+        "celeb-df-v2",
+        "faceshifter",
+        "dfdc"
+      ],
+      "probes": "Detection"
+    },
+    "deepfake_synthesis": {
+      "datasets": [
+        "dfdc",
+        "dfd",
+        "deeperforensics-1.0",
+        "df40"
+      ],
+      "probes": "Detection + Generalization"
+    },
+    "in_the_wild": {
+      "datasets": [
+        "wilddeepfake"
+      ],
+      "probes": "Cross-domain robustness"
+    },
+    "audio_video": {
+      "datasets": [
+        "fakeavceleb"
+      ],
+      "probes": "Multimodal consistency"
+    },
+    "multiple_manipulations": {
+      "datasets": [
+        "forgerynet",
+        "df40"
+      ],
+      "probes": "General manipulation detection"
+    },
+    "compression_quality": {
+      "datasets": [
+        "deeperforensics-1.0",
+        "wilddeepfake"
+      ],
+      "probes": "Robustness"
+    },
+    "unseen_dataset": {
+      "datasets": [
+        "celeb-df-v2",
+        "wilddeepfake",
+        "kodf"
+      ],
+      "probes": "Cross-dataset evaluation"
+    }
+  }
+}
