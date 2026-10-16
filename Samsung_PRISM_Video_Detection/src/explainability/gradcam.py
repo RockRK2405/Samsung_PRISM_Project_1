@@ -20,17 +20,50 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _last_spatial_layer(backbone: nn.Module) -> nn.Module:
+    """Last layer of a timm backbone that still emits a spatial feature map.
+
+    Different families name their top-level stage container differently --
+    EfficientNet uses ``blocks``, ConvNeXt and Swin use ``stages`` -- so this
+    tries the known names and then falls back to the final ``Conv2d``, which
+    is a valid CAM target for any convolutional backbone. Hardcoding
+    ``blocks`` used to raise ``'ConvNeXt' object has no attribute 'blocks'``
+    for every non-EfficientNet model, which is every backbone the project has
+    trained since EXP-005.
+    """
+    for attr in ("blocks", "stages"):
+        container = getattr(backbone, attr, None)
+        if container is not None and len(container) > 0:
+            return container[-1]
+
+    last_conv = None
+    for module in backbone.modules():
+        if isinstance(module, nn.Conv2d):
+            last_conv = module
+    if last_conv is not None:
+        logger.info("GradCAM: no blocks/stages on %s, hooking its last Conv2d.",
+                    type(backbone).__name__)
+        return last_conv
+
+    raise ValueError(
+        f"Cannot find a spatial layer to hook GradCAM onto in "
+        f"{type(backbone).__name__}: it exposes neither 'blocks' nor 'stages' "
+        f"nor any Conv2d. Transformer backbones need attention rollout "
+        f"instead of CAM."
+    )
+
+
 def _target_layer(model: nn.Module) -> nn.Module:
-    """Return the last EfficientNet block to hook CAM onto.
+    """Return the layer to hook CAM onto, whatever backbone is in use.
 
     For dual-stream models we explain the RGB stream only — the FFT
     stream produces heatmaps in the frequency domain that don't overlay
     back onto pixel space meaningfully.
     """
     if isinstance(model, BaselineDetector):
-        return model.backbone.blocks[-1]
+        return _last_spatial_layer(model.backbone)
     if isinstance(model, DualStreamDetector):
-        return model.rgb_backbone.blocks[-1]
+        return _last_spatial_layer(model.rgb_backbone)
     raise ValueError(
         f"GradCAM support not yet implemented for {type(model).__name__}. "
         "Baseline and DualStream are supported; TemporalDetector uses "
