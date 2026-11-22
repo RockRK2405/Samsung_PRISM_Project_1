@@ -282,9 +282,16 @@ class VideoDetector:
         )
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # GradCAM on CPU (grad-required; MPS can be flaky with hooks)
-        cammer = FrameGradCAM(self.model, device=self.gradcam_device, threshold=self.threshold)
-        cams = cammer(tensors)                                       # (N, H, W)
+        # GradCAM on CPU (grad-required; MPS can be flaky with hooks).
+        # FrameGradCAM moves self.model to that device IN PLACE, so put it
+        # back afterwards -- otherwise every later predict() feeds MPS inputs
+        # to CPU weights and fails with "Input type (MPSFloatType) and weight
+        # type (torch.FloatTensor) should be the same".
+        try:
+            cammer = FrameGradCAM(self.model, device=self.gradcam_device, threshold=self.threshold)
+            cams = cammer(tensors)                                   # (N, H, W)
+        finally:
+            self.model.to(self.device).eval()
 
         # Overlays
         for i, (rgb, cam) in enumerate(zip(crops, cams)):

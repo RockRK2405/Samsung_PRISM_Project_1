@@ -170,12 +170,14 @@ def load_predictor(mode: str):
         from src.inference import MultiTargetVideoDetector  # type: ignore
         det = MultiTargetVideoDetector(face_checkpoint=face_ckpt, general_checkpoint=general)
     else:
-        from src.inference import VideoDetector  # type: ignore
+        from src.inference import MultiTargetVideoDetector, VideoDetector  # type: ignore
         det = VideoDetector(checkpoint_path=face_ckpt, threshold=threshold,
                             frames_per_video=int(cfg["frames_sampled"]))
 
     def fn(p: Path) -> tuple[float, bool]:
-        return float(det.predict(p).prob_synthetic), False
+        # No GradCAM for metric runs: not needed, and ~10s/video on CPU.
+        kw = {} if isinstance(det, MultiTargetVideoDetector) else {"produce_explanation": False}
+        return float(det.predict(p, **kw).prob_synthetic), False
 
     return fn, {"mock": False}
 
