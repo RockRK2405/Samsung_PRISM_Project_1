@@ -26,6 +26,9 @@ export default function ResultView({ payload, metadata, evaluation }) {
               </span>
               {payload.mock && <span className="badge-uncertain">MOCK</span>}
             </div>
+            {payload.meta?.verdict_reason && (
+              <div className="mt-1 text-sm text-slate-300">{payload.meta.verdict_reason}</div>
+            )}
             <div className="mt-1 text-sm text-slate-400">
               Decision margin: {(payload.confidence * 100).toFixed(1)}%
               <span className="ml-2 text-slate-600" title="Confidence here = distance from the decision threshold, not P(correct).">ⓘ</span>
@@ -48,6 +51,9 @@ export default function ResultView({ payload, metadata, evaluation }) {
         </div>
       </div>
 
+      {/* Per-branch results (unified pipeline) */}
+      {payload.meta?.branches && <BranchPanel branches={payload.meta.branches} />}
+
       {/* Temporal consistency */}
       <Section title="Temporal Consistency Analysis">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -59,6 +65,9 @@ export default function ResultView({ payload, metadata, evaluation }) {
           <Metric label="Suspicious" value={`${t.suspicious_frames}/${t.total_frames} (${t.suspicious_pct}%)`} />
         </div>
         <div className="mt-5">
+          {payload.meta?.timeline_source && (
+            <div className="mb-2 text-xs text-slate-500">Per-frame scores from: {payload.meta.timeline_source}</div>
+          )}
           <TimelineChart frames={payload.frame_predictions} threshold={payload.threshold} />
         </div>
       </Section>
@@ -118,6 +127,13 @@ Suspicious Frames:       ${t.suspicious_frames}/${t.total_frames}
 Average Synthetic Prob:  ${fmt(t.avg_synthetic)}
 Peak Synthetic Prob:     ${fmt(t.max_synthetic)}
 Processing Time:         ${fmt(payload.processing_time, 2)}s${
+  payload.meta?.branches
+    ? "\n" + Object.entries(payload.meta.branches).map(([k, b]) =>
+        `${(k + " branch:").padEnd(25)}${b.status === "ran"
+          ? `P(synth) ${fmt(b.prob_synthetic)} vs thr ${b.threshold} -> ${b.fired ? "FIRED" : "clear"}`
+          : b.status + (b.reason ? ` (${b.reason})` : "")}`).join("\n")
+    : ""
+}${
   evaluation && evaluation.correct != null
     ? `\nGround Truth:            ${evaluation.ground_truth}\nClassification Result:   ${evaluation.result}`
     : ""
@@ -165,3 +181,60 @@ function Row({ k, v }) {
     </div>
   );
 }
+
+const BRANCH_LABEL = {
+  general: "General AI-Video Branch",
+  face: "Face-Swap Branch",
+};
+
+function BranchPanel({ branches }) {
+  return (
+    <Section title="Detection Branches">
+      <div className="grid gap-4 md:grid-cols-2">
+        {Object.entries(branches).map(([key, b]) => (
+          <BranchCard key={key} name={BRANCH_LABEL[key] || key} b={b} />
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-slate-500">
+        Every video runs through the general branch. The face branch runs only when faces
+        are found. The final verdict is SYNTHETIC if any branch that ran crosses its threshold.
+      </p>
+    </Section>
+  );
+}
+
+function BranchCard({ name, b }) {
+  if (b.status !== "ran") {
+    return (
+      <div className="rounded-md border border-slate-800 bg-slate-900 p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-slate-300">{name}</span>
+          <span className="badge-uncertain">{b.status === "not_applicable" ? "NOT APPLICABLE" : "DISABLED"}</span>
+        </div>
+        {b.reason && <div className="mt-2 text-xs text-slate-500">{b.reason}</div>}
+      </div>
+    );
+  }
+  const p = Number(b.prob_synthetic);
+  return (
+    <div className={`rounded-md border p-4 ${b.fired ? "border-rose-500/50 bg-rose-500/5" : "border-emerald-500/30 bg-emerald-500/5"}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-slate-200">{name}</span>
+        <span className={b.fired ? "badge-synthetic" : "badge-real"}>{b.fired ? "SYNTHETIC" : "REAL"}</span>
+      </div>
+      <div className="mt-3 text-2xl font-bold text-slate-100">{fmt(p)}</div>
+      <div className="text-xs text-slate-500">P(synthetic) · threshold {b.threshold}</div>
+      <div className="relative mt-2 h-2 rounded bg-slate-800">
+        <div className={`h-2 rounded ${b.fired ? "bg-rose-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(p, 1) * 100}%` }} />
+        <div className="absolute top-[-3px] h-[14px] w-[2px] bg-slate-300" style={{ left: `${b.threshold * 100}%` }} title="threshold" />
+      </div>
+      <div className="mt-3 space-y-1 text-xs">
+        {b.detects && <Row k="Detects" v={b.detects} />}
+        {b.model && <Row k="Model" v={b.model} />}
+        {b.checkpoint && <Row k="Checkpoint" v={b.checkpoint} />}
+        {b.face_coverage != null && <Row k="Face coverage" v={`${(b.face_coverage * 100).toFixed(0)}%`} />}
+      </div>
+    </div>
+  );
+}
+

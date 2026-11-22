@@ -24,6 +24,15 @@ export default function ModelInfo() {
     ["Frames Sampled", s.frames_sampled],
     ["Decision Threshold", s.decision_threshold],
   ];
+  if (s.pipeline === "unified") {
+    rows.splice(2, 1,
+      ["Pipeline", "unified (general AI-video + face-swap, OR-fused)"],
+      ["General Checkpoint", s.general_checkpoint],
+      ["General Threshold", s.general_threshold],
+      ["Face Checkpoint", s.checkpoint],
+      ["Face Threshold", s.face_threshold],
+    );
+  }
 
   return (
     <div className="space-y-6">

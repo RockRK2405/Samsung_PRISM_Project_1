@@ -317,6 +317,8 @@ def model_status() -> dict[str, Any]:
         "frame_sampling_strategy": cfg["frame_sampling_strategy"],
         "frames_sampled": cfg["frames_sampled"],
         "decision_threshold": cfg["decision_threshold"],
+        "general_threshold": cfg.get("general_threshold"),
+        "face_threshold": cfg.get("face_threshold"),
     }
 
 

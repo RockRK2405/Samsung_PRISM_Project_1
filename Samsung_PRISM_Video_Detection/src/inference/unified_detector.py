@@ -92,6 +92,7 @@ class _GeneralBranch:
         # on 16-frame clips, so these are a diagnostic timeline only -- the
         # verdict always comes from the clip score above.
         per_frame: list[float] = []
+        timeline_source = "none"
         if self.family in {"frame_baseline", "frame_temporal", "spatial"}:
             probs = torch.softmax(self.model(clip.unsqueeze(1)), dim=-1)[:, 1]
             per_frame = [float(x) for x in probs.cpu()]
@@ -168,6 +169,7 @@ class UnifiedVideoDetector:
                 "detects": "fully AI-generated video (text-to-video), any content",
             }
             per_frame = g_frames
+            timeline_source = "general (1-frame diagnostic; verdict uses the 16-frame clip score)"
         else:
             branches["general"] = {"status": "disabled"}
 
@@ -194,6 +196,7 @@ class UnifiedVideoDetector:
                     "detects": "face-swap deepfakes",
                 }
                 per_frame = [float(x) for x in f_scores]  # face timeline is the trained one
+                timeline_source = "face branch (per face crop)"
             else:
                 branches["face"] = {
                     "status": "not_applicable",
@@ -237,6 +240,7 @@ class UnifiedVideoDetector:
                 "branches": branches,
                 "fired": fired,
                 "verdict_reason": reason,
+                "timeline_source": timeline_source,
                 "fusion": "OR over applicable branches (recall-first)",
             },
         )
