@@ -100,24 +100,19 @@ def load_predictor(mode: str):
     # direct
     if str(_MODULE_ROOT) not in sys.path:
         sys.path.insert(0, str(_MODULE_ROOT))
-    ckpt_dir = _MODULE_ROOT / "checkpoints"
-    general, face = ckpt_dir / "general.pt", ckpt_dir / "best.pt"
-
-    if general.is_file() and face.is_file():
-        from src.inference import MultiTargetVideoDetector  # type: ignore
-
-        det = MultiTargetVideoDetector(face_checkpoint=face, general_checkpoint=general)
-        name = "MultiTargetVideoDetector"
-    elif face.is_file():
-        from src.inference import VideoDetector  # type: ignore
-
-        det = VideoDetector(checkpoint_path=face)
-        name = "VideoDetector (face only)"
-    else:
-        raise FileNotFoundError(
-            "Need checkpoints/best.pt (face) or both best.pt+general.pt. "
-            "General-only is blocked by a known defect -- see §7.4 of the work log."
-        )
+    # Same config the dashboard reads -- never guess checkpoint filenames
+    # (best.pt was overwritten with a GenImage model; see checkpoints/MANIFEST.md).
+    import yaml
+    cfg = yaml.safe_load((_DASHBOARD / "config" / "config.yaml").read_text())["model"]
+    face = (_MODULE_ROOT / cfg["checkpoint"]).resolve()
+    if not face.is_file():
+        raise FileNotFoundError(f"Checkpoint from config not found: {face}")
+    print(f"  direct mode -> {face.name}  threshold={cfg['decision_threshold']}  "
+          f"multi_target={bool(cfg.get('use_multi_target'))}")
+    from src.inference import VideoDetector  # type: ignore
+    det = VideoDetector(checkpoint_path=face, threshold=float(cfg["decision_threshold"]),
+                        frames_per_video=int(cfg["frames_sampled"]))
+    name = f"VideoDetector ({face.name})"
 
     def fn(path: Path) -> dict:
         r = det.predict(path)

@@ -151,16 +151,28 @@ def load_predictor(mode: str):
 
         return fn, status
 
+    # Read the SAME config the dashboard uses, instead of guessing filenames.
+    # This used to hardcode checkpoints/best.pt + general.pt, which silently
+    # scored the wrong model (best.pt was overwritten with a GenImage model).
+    import yaml  # noqa: PLC0415
     if str(_MODULE_ROOT) not in sys.path:
         sys.path.insert(0, str(_MODULE_ROOT))
-    ckpt = _MODULE_ROOT / "checkpoints"
-    if (ckpt / "general.pt").is_file() and (ckpt / "best.pt").is_file():
+    cfg = yaml.safe_load((_DASHBOARD / "config" / "config.yaml").read_text())["model"]
+    face_ckpt = (_MODULE_ROOT / cfg["checkpoint"]).resolve()
+    threshold = float(cfg["decision_threshold"])
+    if not face_ckpt.is_file():
+        raise SystemExit(f"Checkpoint from config not found: {face_ckpt}")
+    print(f"direct mode -> checkpoint={face_ckpt.name}  threshold={threshold}  "
+          f"multi_target={bool(cfg.get('use_multi_target'))}")
+
+    general = (_MODULE_ROOT / cfg["general_checkpoint"]).resolve() if cfg.get("general_checkpoint") else None
+    if cfg.get("use_multi_target") and general is not None and general.is_file():
         from src.inference import MultiTargetVideoDetector  # type: ignore
-        det = MultiTargetVideoDetector(face_checkpoint=ckpt / "best.pt",
-                                       general_checkpoint=ckpt / "general.pt")
+        det = MultiTargetVideoDetector(face_checkpoint=face_ckpt, general_checkpoint=general)
     else:
         from src.inference import VideoDetector  # type: ignore
-        det = VideoDetector(checkpoint_path=ckpt / "best.pt")
+        det = VideoDetector(checkpoint_path=face_ckpt, threshold=threshold,
+                            frames_per_video=int(cfg["frames_sampled"]))
 
     def fn(p: Path) -> tuple[float, bool]:
         return float(det.predict(p).prob_synthetic), False
