@@ -60,8 +60,8 @@ frames/features, write compact shards to Drive, delete the raw archive.
 ```
 MyDrive/prism_video/
 ├── raw/            # temporary only — delete after extraction
-├── frames/         # 16 frames/video @224px JPEG, packed in .tar shards  (~0.25 MB/video)
-│   └── <dataset>/<generator>/shard-000.tar ...
+├── frames/         # 16 frames/video, short side 256px JPEG, .tar shards + .jsonl index (~0.3 MB/video)
+│   └── <generator or real-source>/shard-00000.{tar,jsonl}
 ├── features/       # CLIP ViT-L/14 per-frame features, fp16 .npy shards   (~32 KB/video)
 ├── manifests/      # train/val/test CSVs (video_id, label, generator, source, content)
 ├── checkpoints/    # every run, never overwritten; name + sha256 in MANIFEST.md
@@ -101,7 +101,7 @@ Your existing `data/manifests/{train,val,test}.csv` already implement
 train/val/test-A; reuse them so results stay comparable to EXP-004.
 
 **Steps:**
-1. Download Pair1 archive by archive → extract 16 uniform frames/video →
+1. (`notebooks/Phase1_Data_Prep.ipynb`) Download Pair1 archive by archive → extract 16 uniform frames/video →
    frame shards on Drive → delete archive. Then Pair2 the same way (test-B
    only, never trained on).
 2. Extract CLIP ViT-L/14 features from the frame shards → feature shards.
