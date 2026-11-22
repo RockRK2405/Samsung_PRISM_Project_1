@@ -62,8 +62,13 @@ def main() -> int:
 
     from transformers import CLIPImageProcessor, CLIPVisionModelWithProjection
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    dtype = torch.float16 if device == "cuda" else torch.float32
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"  # Apple Silicon GPU
+    else:
+        device = "cpu"
+    dtype = torch.float16 if device in {"cuda", "mps"} else torch.float32
     proc = CLIPImageProcessor.from_pretrained(MODEL_ID)
     model = CLIPVisionModelWithProjection.from_pretrained(MODEL_ID, torch_dtype=dtype).to(device).eval()
     print(f"{MODEL_ID} on {device}")
