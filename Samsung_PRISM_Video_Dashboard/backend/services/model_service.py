@@ -63,10 +63,30 @@ class _RealModel:
 
         # Imported lazily so a missing video module degrades to mock mode
         # rather than crashing the whole backend at import time.
-        from src.inference import MultiTargetVideoDetector, VideoDetector  # type: ignore
+        from src.inference import MultiTargetVideoDetector, UnifiedVideoDetector, VideoDetector  # type: ignore
 
         cfg = get_config()["model"]
         ckpt = checkpoint_path()
+        self._unified = str(cfg.get("pipeline", "face_only")).lower() == "unified"
+        self._multi_target = False
+        self._produce_explanation = bool(cfg.get("produce_explanation", True))
+
+        if self._unified:
+            general_rel = cfg.get("general_checkpoint")
+            general_ckpt = (video_module_root() / general_rel).resolve() if general_rel else None
+            # Either branch alone is enough; the detector raises if neither exists.
+            self._detector = UnifiedVideoDetector(
+                general_checkpoint=general_ckpt,
+                face_checkpoint=ckpt if ckpt.is_file() else None,
+                general_threshold=float(cfg.get("general_threshold", 0.5)),
+                face_threshold=float(cfg.get("face_threshold", cfg.get("decision_threshold", 0.5))),
+                face_coverage_threshold=float(cfg.get("face_coverage_threshold", 0.5)),
+                device=cfg.get("device"),
+                image_size=int(cfg["input_size"]),
+            )
+            logger.info("Unified detector loaded (general=%s, face=%s)", general_ckpt, ckpt)
+            return
+
         if not ckpt.is_file():
             raise FileNotFoundError(f"Checkpoint not found: {ckpt}")
 
@@ -99,7 +119,11 @@ class _RealModel:
         # can't relocate the shared model's device mid-forward.
         with _predict_lock:
             t0 = time.perf_counter()
-            if self._multi_target:
+            if self._unified:
+                result = self._detector.predict(
+                    video_path, produce_explanation=self._produce_explanation
+                )
+            elif self._multi_target:
                 # MultiTargetVideoDetector.predict() does not accept the
                 # produce_explanation flag — GradCAM only makes sense on
                 # the face path, and the router may skip it entirely.
@@ -273,16 +297,19 @@ def model_status() -> dict[str, Any]:
     if _real_model is None and not _mock_active:
         init_model()
     multi_target_active = bool(_real_model and getattr(_real_model, "_multi_target", False))
+    unified_active = bool(_real_model and getattr(_real_model, "_unified", False))
     general_rel = cfg.get("general_checkpoint")
     general_ckpt = str((video_module_root() / general_rel).resolve()) if general_rel else None
     return {
         "mock": _mock_active,
         "connected": not _mock_active,
         "load_error": _load_error,
-        "name": ("MultiTargetVideoDetector (face+general, ADR-006)" if multi_target_active else cfg["name"]),
+        "name": cfg["name"] if unified_active else (
+            "MultiTargetVideoDetector (face+general, ADR-006)" if multi_target_active else cfg["name"]),
+        "pipeline": "unified" if unified_active else ("multi_target" if multi_target_active else "face_only"),
         "architecture": cfg["architecture"],
         "checkpoint": str(checkpoint_path()),
-        "general_checkpoint": general_ckpt if multi_target_active else None,
+        "general_checkpoint": general_ckpt if (multi_target_active or unified_active) else None,
         "multi_target": multi_target_active,
         "version": cfg["version"],
         "device": cfg.get("device") or "auto (mps > cuda > cpu)",

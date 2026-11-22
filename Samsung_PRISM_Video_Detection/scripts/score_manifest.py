@@ -39,6 +39,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 _MODULE_ROOT = _HERE.parent
 _DASHBOARD = _MODULE_ROOT.parent / "Samsung_PRISM_Video_Dashboard"
+_BRANCH_LOG: list[dict] = []
 
 
 # ------------------------------------------------------------------- metrics
@@ -166,6 +167,23 @@ def load_predictor(mode: str):
           f"multi_target={bool(cfg.get('use_multi_target'))}")
 
     general = (_MODULE_ROOT / cfg["general_checkpoint"]).resolve() if cfg.get("general_checkpoint") else None
+    if str(cfg.get("pipeline", "")).lower() == "unified":
+        from src.inference import UnifiedVideoDetector  # type: ignore
+        det = UnifiedVideoDetector(
+            general_checkpoint=general, face_checkpoint=face_ckpt,
+            general_threshold=float(cfg.get("general_threshold", 0.5)),
+            face_threshold=float(cfg.get("face_threshold", threshold)),
+            face_coverage_threshold=float(cfg.get("face_coverage_threshold", 0.5)))
+        print(f"  pipeline=unified  general={general.name if general else None}")
+
+        def fn(p: Path) -> tuple[float, bool]:
+            r = det.predict(p, produce_explanation=False)
+            b = r.meta["branches"]
+            _BRANCH_LOG.append({"path": str(p), **{f"{k}_{f}": v.get(f) for k, v in b.items()
+                                for f in ("status", "prob_synthetic")}})
+            return float(r.prob_synthetic), False
+
+        return fn, {"mock": False}
     if cfg.get("use_multi_target") and general is not None and general.is_file():
         from src.inference import MultiTargetVideoDetector  # type: ignore
         det = MultiTargetVideoDetector(face_checkpoint=face_ckpt, general_checkpoint=general)
@@ -198,10 +216,11 @@ def main() -> int:
     rows = []
     with Path(args.manifest).open(newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
-            if not r.get("path"):
+            path = r.get("path") or r.get("video_path")
+            if not path:
                 continue
-            rows.append({"path": r["path"], "label": int(r["label"]),
-                         "group": (r.get("group") or "all").strip()})
+            group = r.get("group") or r.get("generator") or r.get("source") or "all"
+            rows.append({"path": path, "label": int(r["label"]), "group": group.strip() or "all"})
     if args.limit:
         rows = rows[: args.limit]
     if not rows:
@@ -291,6 +310,7 @@ def main() -> int:
         "per_group": groups,
         "threshold_sweep": threshold_sweep(labels, scores),
         "failures": failures,
+        "per_branch": _BRANCH_LOG,
         "scores": [{"path": r["path"], "label": r["label"], "group": r["group"]}
                    for r in rows if Path(r["path"]).expanduser().is_file()][: len(labels)],
     }

@@ -140,6 +140,12 @@ class VideoDetector:
                 f"Checkpoint {self.checkpoint_path} has no embedded model config. "
                 "Retrain with the current trainer or pass configs/model.yaml explicitly."
             )
+        if "family" in model_cfg:
+            raise ValueError(
+                f"{self.checkpoint_path.name} is a video-level model "
+                f"(family={model_cfg['family']}); VideoDetector scores single face "
+                f"crops. Load it with UnifiedVideoDetector(general_checkpoint=...)."
+            )
         self.model_cfg = model_cfg
         self.model: torch.nn.Module = build_model_from_config(model_cfg).to(self.device)
         self.model.load_state_dict(ckpt["state_dict"])

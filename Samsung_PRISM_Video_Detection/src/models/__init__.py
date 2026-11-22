@@ -45,6 +45,13 @@ def build_model_from_config(model_cfg: dict[str, Any]) -> nn.Module:
     Unknown ``temporal_head.type`` values raise ``ValueError`` — a config
     typo should surface loudly, not silently fall back to the baseline.
     """
+    # Video-level checkpoints (EXP-004 VideoSpatialNet, VideoMAE, TimeSformer)
+    # carry model.family. Previously they fell through to BaselineDetector and
+    # failed on load_state_dict (enablement plan 7.2). Route them to the
+    # video-model factory instead.
+    if "family" in model_cfg:
+        return build_video_model_from_config({"model": model_cfg})
+
     freq_stream = model_cfg.get("frequency_stream") or {}
     if bool(freq_stream.get("enabled", False)):
         return build_dual_stream_from_config(model_cfg)
