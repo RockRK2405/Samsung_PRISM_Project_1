@@ -283,3 +283,50 @@ python scripts/eval_face_crops.py \
 4. **Fix the `CROSS-DATASET` header** in `eval_face_crops.py` to read the
    protocol from the manifest instead of hardcoding it.
 5. **Pursue official FF++** for the cross-dataset number this cannot provide.
+
+---
+
+## Addendum (2026-11-22) — video-level replay through the deployed inference path
+
+The same 182 held-out videos (`reports/EXP-006-test-manifest.csv`) were re-scored
+through `VideoDetector` — the code path the dashboard uses: 16 uniformly sampled
+frames → MTCNN face crops → per-crop score → mean-pool to one score per video.
+Run on the owner's MacBook (MPS), `checkpoint=face_celebdf_identity.pt`,
+threshold 0.5, via `score_manifest.py --mode direct`.
+
+| Metric | **Video-level (deployed path)** | Crop-level (§3) |
+|---|:-:|:-:|
+| **ROC-AUC** | **0.9896** (95% CI ±0.03) | 0.9644 (±0.05) |
+| PR-AUC | 0.9352 | 0.8285 |
+| Accuracy | 0.9505 | 0.9248 |
+| Recall | 0.9615 (25/26) | 0.9103 |
+| FPR | 0.0513 (8/156) | 0.0727 |
+| Confusion | TP 25 · FP 8 · TN 148 · FN 1 | — |
+
+Mean-pooling over a video lifts every metric, as expected: single bad crops are
+averaged away. **This is the first end-to-end confirmation that the served model
+reproduces its offline measurement** — every earlier dashboard/script failure
+traced to integration bugs (wrong checkpoint loaded, GradCAM crashing on
+ConvNeXt, GradCAM leaving the model on CPU), not to the model.
+
+### Where it fails — identity concentration
+
+- **All 8 false positives come from just two real identities:** `id21`
+  (0004, 0005, 0007, 0009) and `id22` (0003, 0004, 0005, 0006). The other 12
+  celebrity identities and all 42 YouTube-real clips scored clean.
+- `id21` and `id22` are among the most frequent faces in the test fakes
+  (`id22_id19_*`, `id19_id22_*`, `id22_id21_*`, `id28_id21_*`, …). So part of
+  the "synthetic" signal is plausibly **who the person is**, not only
+  manipulation artifacts — the model has partly associated these faces with
+  fakes. Treat as a real limitation; it is exactly the kind of shortcut that
+  would not survive a new dataset.
+- **One miss:** `id58_id54_0003` at 0.427, just under threshold.
+
+### Threshold
+
+The sweep shows recall stays 1.0 up to 0.40 (FPR 0.064), and 0.85 gives FPR
+0.013 at recall 0.85. 0.5 remains a sound default. Note this is chosen on the
+test set, so it must not be reported as a tuned operating point.
+
+Same caveats as §5 apply: 26 fake videos, single dataset, **not cross-dataset**.
+Raw output: `reports/exp006_replay.json`.

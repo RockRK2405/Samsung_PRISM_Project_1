@@ -195,5 +195,33 @@
       "conclusion": "a ~16x larger collapse for a change of corpus than for a change of person; the face branch's failure mode is DATASET/DOMAIN shift, not unfamiliar faces"
     },
     "note": "compare the AUC row only -- val and test have different real/fake ratios, so F1 is not comparable across them"
+  },
+  "results_video_level_replay": {
+    "date": "2026-11-22",
+    "path": "VideoDetector (deployed): 16 frames -> MTCNN -> mean-pool",
+    "device": "mps",
+    "threshold": 0.5,
+    "n_videos": 182,
+    "roc_auc": 0.9896,
+    "roc_auc_ci95": 0.028,
+    "pr_auc": 0.9352,
+    "accuracy": 0.9505,
+    "precision": 0.7576,
+    "recall": 0.9615,
+    "f1": 0.8475,
+    "fpr": 0.0513,
+    "fnr": 0.0385,
+    "confusion": {
+      "tp": 25,
+      "fp": 8,
+      "tn": 148,
+      "fn": 1
+    },
+    "false_positive_identities": {
+      "id21": 4,
+      "id22": 4
+    },
+    "finding": "served model reproduces offline measurement; all 8 FPs from 2 identities that appear frequently in test fakes -> possible identity shortcut",
+    "raw": "reports/exp006_replay.json"
   }
 }
